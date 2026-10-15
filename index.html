@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0c0f14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Orbite">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Orbite</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/5.0.0/satellite.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<style>
+:root{--bg:#0c0f14;--fg:#e8eaed;--mut:#7b8490;--acc:#f2b84b;--line:#1a2029;--sea:#0c0f14;--land:#141a22}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;font-variant-numeric:tabular-nums}
+body{display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0)}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line)}
+header h1{font-size:17px;font-weight:600;letter-spacing:.01em;flex:1}
+header small{color:var(--mut);font-size:12px}
+select{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit;font-size:13px}
+main{flex:1;position:relative;min-height:0;display:flex;flex-direction:column}
+#mv{position:relative;flex:1;min-height:0}
+#cv{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+.pane{position:absolute;inset:0;background:var(--bg);overflow:auto;padding:12px 16px;display:none}
+.pane.on{display:block}
+nav{display:flex;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0)}
+nav button{flex:1;background:none;border:0;color:var(--mut);font:inherit;font-size:14px;padding:15px 0}
+nav button.on{color:var(--acc);font-weight:600}
+#card{position:absolute;left:12px;right:12px;bottom:12px;background:rgba(12,15,20,.92);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+#card b{font-size:16px}#card span{color:var(--mut);font-size:12px;margin-left:8px}
+.g{display:grid;grid-template-columns:1fr 1fr 1.5fr 1.1fr;gap:8px;margin-top:10px}
+.g div{font-size:14px}.g i{display:block;font-style:normal;color:var(--mut);font-size:11px}
+.zoom{position:absolute;right:12px;top:12px;display:flex;flex-direction:column;gap:6px}
+.zoom button{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:rgba(12,15,20,.85);color:var(--fg);font-size:20px}
+.zoom #zm{font-size:13px;font-weight:600;color:var(--acc)}
+input[type=search],.f input{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;margin-bottom:8px}
+.row{display:flex;justify-content:space-between;padding:12px 2px;border-bottom:1px solid var(--line)}
+.row span{color:var(--mut);font-size:13px}
+.row[data-i]{cursor:pointer}.row.on{color:var(--acc)}.row.on span{color:var(--acc)}
+#skc{display:block;width:100%;max-width:360px;aspect-ratio:1;margin:0 auto}
+.tb{display:grid;grid-template-columns:auto 1fr 1fr auto;gap:6px 14px;font-size:14px;margin-top:10px}
+.tb i{font-style:normal;color:var(--mut);font-size:12px}
+.tm{flex:none;display:flex;gap:6px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
+.tm input,.tm button{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;height:38px;font:inherit;font-size:13px}
+.tm input{flex:1;min-width:0;padding:0 8px;color-scheme:dark}
+.tm button{padding:0 9px}
+.tm button.on{color:var(--acc);border-color:var(--acc)}
+#skyc{border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:4px}
+.m{color:var(--mut)}
+.f{display:flex;gap:8px;margin:10px 0}.f input{margin:0}
+.f button,.btn{background:var(--acc);color:#1a1405;border:0;border-radius:10px;padding:10px 14px;font:inherit;font-weight:600}
+#st{color:var(--mut);font-size:12px;padding:6px 16px}
+.seg{display:flex;gap:6px;margin:10px 0}
+.seg button{flex:1;background:var(--bg);color:var(--mut);border:1px solid var(--line);border-radius:10px;padding:8px 0;font:inherit;font-size:13px}
+.seg button.on{color:var(--acc);border-color:var(--acc)}
+.ev{border-bottom:1px solid var(--line);padding:12px 2px}
+.eh{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.eh b{font-size:15px}
+.pill{font-size:12px;border-radius:999px;padding:3px 9px;border:1px solid var(--line);white-space:nowrap;color:var(--mut)}
+.pill.hi{color:#ff8a80;border-color:#ff8a80}.pill.md{color:var(--acc);border-color:var(--acc)}
+.sub{font-size:12px;color:var(--mut);margin-top:2px}
+.eg{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin-top:10px;font-size:14px}
+.eg i{display:block;font-style:normal;color:var(--mut);font-size:11px}
+.btn.s{padding:7px 12px;font-size:13px;background:#1a2029;color:var(--fg);margin-top:10px}
+.btn.s2{padding:8px 14px;font-size:14px}
+.lk{color:var(--acc);font-size:14px;margin-left:8px}
+.bar{height:4px;background:var(--line);border-radius:2px;margin:8px 0;overflow:hidden}.bar div{height:100%;background:var(--acc)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Orbite</h1>
+  <small id="clk"></small>
+  <select id="grp"></select>
+</header>
+<main>
+  <div class="tm"><button id="tm">−1h</button><input type="datetime-local" id="dt"><button id="tp">+1h</button><button id="tn" class="on">Ora</button></div>
+  <div id="mv">
+    <canvas id="cv"></canvas>
+    <div class="zoom"><button id="zm">3D</button><button id="zi">+</button><button id="zo">−</button></div>
+    <div id="card" hidden></div>
+  </div>
+  <section class="pane" id="list"><input type="search" id="q" placeholder="Nome o NORAD ID (Invio per cercarlo)"><div id="rows"></div></section>
+  <section class="pane" id="pass"></section>
+  <section class="pane" id="col"></section>
+</main>
+<div id="st"></div>
+<nav><button data-t="map" class="on">Mappa</button><button data-t="list">Elenco</button><button data-t="pass">Passaggi</button><button data-t="col">Collisioni</button></nav>
+
+<script>
+const R=Math.PI/180,$=s=>document.querySelector(s);
+const GROUPS={stations:'Stazioni spaziali',weather:'Meteo','gps-ops':'GPS',science:'Scienza',geo:'Geostazionari',starlink:'Starlink','iride-b1':'IRIDE-OHB B1','iride-b2a':'IRIDE-OHB B2A'};
+// gruppi personalizzati: elenco di NORAD ID
+const CUSTOM={
+  'iride-b1':[66695,66696,66697,66698,66699,66700,66701,66702],
+  'iride-b2a':[68449,68451,68453,68461,68450,68447,68462,68452]
+};
+let sats=[],sel=null,obs=null,land=null,landV=null,m3=false,view={lon:0,lat:0,z:1,z3:1},tab='map',group='stations';
+const cv=$('#cv'),ctx=cv.getContext('2d');let W=0,H=0;
+const esc=t=>String(t).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const wrap=d=>((d%360)+540)%360-180;
+const status=t=>$('#st').textContent=t;
+
+// ---------- dati ----------
+const TLE_OK=/^1 \d[^\n]*\r?\n2 \d/m;
+// Scarica i TLE da CelesTrak con cache locale (6 ore), timeout, un nuovo tentativo e messaggi d'errore specifici
+async function getTLE(url,key){
+  let c=null;
+  try{c=JSON.parse(localStorage.getItem(key))}catch(e){}
+  if(c&&c.t&&!TLE_OK.test(c.t))c=null;
+  if(c&&Date.now()-c.ts<216e5)return{txt:c.t,msg:'Uso i TLE salvati.'};
+  status('Scarico i TLE da CelesTrak…');
+  let err='';
+  for(let k=0;k<2;k++){
+    if(k)await new Promise(r=>setTimeout(r,1500));
+    const ac=new AbortController(),to=setTimeout(()=>ac.abort(),20000);
+    try{
+      const r=await fetch(url,{signal:ac.signal});
+      if(r.status===403||r.status===429){clearTimeout(to);err='CelesTrak ha rifiutato la richiesta (HTTP '+r.status+'): limite di scaricamenti, riprova tra circa 2 ore.';break}
+      if(!r.ok){clearTimeout(to);err='CelesTrak ha risposto con errore HTTP '+r.status+'.';continue}
+      const t=await r.text();clearTimeout(to);
+      if(/no gp data/i.test(t))return{err:'Nessun dato per questo oggetto su CelesTrak.',nf:true};
+      if(!TLE_OK.test(t)){err='CelesTrak ha risposto senza dati TLE validi.';break}
+      try{localStorage.setItem(key,JSON.stringify({ts:Date.now(),t}))}catch(e){}
+      return{txt:t,msg:'TLE aggiornati alle '+new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})};
+    }catch(e){
+      clearTimeout(to);
+      err=navigator.onLine===false?'Sei offline.':e.name==='AbortError'?'CelesTrak non risponde (timeout di 20 secondi).':'Connessione a CelesTrak non riuscita (rete, oppure richiesta rifiutata per limite di scaricamenti).';
+    }
+  }
+  if(c&&c.t)return{txt:c.t,msg:'',warn:err+' Uso gli ultimi TLE salvati.'};
+  return{err};
+}
+function splitTLE(t){
+  const L=t.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),out=[];
+  for(let i=0;i+2<L.length;i+=3){
+    if(/^1 \d/.test(L[i+1])&&/^2 \d/.test(L[i+2]))out.push({id:L[i+2].substr(2,5).trim(),t:L[i]+'\n'+L[i+1]+'\n'+L[i+2]});
+  }
+  return out;
+}
+// Gruppi IRIDE: una sola richiesta per nome ("IRIDE"), poi filtro sugli ID; gli ID mancanti si chiedono uno per uno
+async function loadCustom(g){
+  const ids=CUSTOM[g].map(String);
+  const r=await getTLE('https://celestrak.org/NORAD/elements/gp.php?NAME=IRIDE&FORMAT=tle','tle:name:IRIDE');
+  const blocks=r.txt?splitTLE(r.txt):[];
+  const have=new Set(blocks.map(b=>b.id));
+  for(const id of ids){
+    if(have.has(id))continue;
+    const x=await getTLE('https://celestrak.org/NORAD/elements/gp.php?CATNR='+id+'&FORMAT=tle','tle:'+id);
+    if(x.txt)splitTLE(x.txt).forEach(b=>{if(!have.has(b.id)){have.add(b.id);blocks.push(b)}});
+  }
+  const keep=blocks.filter(b=>ids.includes(b.id));
+  if(!keep.length){status(r.err||'Nessun satellite trovato su CelesTrak per questo gruppo.');return}
+  parse(keep.map(b=>b.t).join('\n'));
+  const miss=ids.filter(i=>!keep.some(b=>b.id===i));
+  status(keep.length+' satelliti su '+ids.length+(miss.length?' (mancano NORAD '+miss.join(', ')+')':'')+(r.warn?'. '+r.warn:''));
+}
+async function load(g){
+  if(CUSTOM[g])return loadCustom(g);
+  const r=await getTLE('https://celestrak.org/NORAD/elements/gp.php?GROUP='+g+'&FORMAT=tle','tle:'+g);
+  if(!r.txt){status(r.err);return}
+  parse(r.txt);status(r.warn||r.msg);
+}
+async function loadOne(id){
+  id=String(id).replace(/\D/g,'');if(!id)return;
+  const r=await getTLE('https://celestrak.org/NORAD/elements/gp.php?CATNR='+id+'&FORMAT=tle','tle:'+id);
+  if(!r.txt){status(r.nf?'Nessun satellite trovato con NORAD '+id+'.':r.err);return}
+  const old=gs.querySelector('option[value=one]');if(old)old.remove();
+  const o=document.createElement('option');o.value='one';o.textContent='NORAD '+id;gs.appendChild(o);gs.value='one';group='one';
+  parse(r.txt);sel=sats[0]||null;
+  if(sel&&sel.p){view.lon=sel.p.lon;view.lat=sel.p.lat}
+  update();renderPass();show('map');
+  status((sel?'Mostro solo '+sel.name+' (NORAD '+id+')':'Nessun dato valido per NORAD '+id+'.')+(r.warn?' '+r.warn:''));
+}
+function parse(t){
+  const L=t.trim().split(/\r?\n/).map(s=>s.trim());sats=[];
+  for(let i=0;i+2<L.length;i+=3){
+    try{sats.push({name:L[i].replace(/^0 /,''),rec:satellite.twoline2satrec(L[i+1],L[i+2]),id:L[i+2].substr(2,5).trim()})}catch(e){}
+  }
+  if(sats.length>1500)sats.length=1500;
+  sel=group==='stations'?(sats.find(s=>/ISS \(ZARYA\)/.test(s.name))||null):null;
+  update();renderList();
+}
+// I contorni che attraversano la linea del cambio data (180°) vengono resi continui:
+// le longitudini possono superare ±180° e la mappa li ridisegna a ±360°. Un anello che gira attorno a un polo
+// (Antartide) viene chiuso passando dal polo.
+function fixRing(r){
+  const out=[];let off=0,prev=null;
+  for(const c of r){
+    let lon=c[0]+off;
+    if(prev!==null){const d=lon-prev;if(d>180){off-=360;lon-=360}else if(d<-180){off+=360;lon+=360}}
+    out.push([lon,c[1]]);prev=lon;
+  }
+  const f=out[0],l=out[out.length-1];
+  if(Math.abs(l[0]-f[0])>180){
+    const pole=out.reduce((a,c)=>a+c[1],0)/out.length<0?-90:90;
+    out.push([l[0],pole],[f[0],pole]);
+  }
+  return out;
+}
+async function loadLand(){
+  try{
+    let j=localStorage.getItem('land');
+    if(!j){j=await (await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json')).text();try{localStorage.setItem('land',j)}catch(e){}}
+    const t=JSON.parse(j),f=topojson.feature(t,t.objects.land);
+    const geoms=f.features?f.features.map(x=>x.geometry):[f.geometry];land=[];
+    const raw=[];
+    geoms.forEach(g=>(g.type==='Polygon'?[g.coordinates]:g.coordinates).forEach(p=>{raw.push(p);land.push(p.map(fixRing))}));
+    landV=raw.map(p=>p.map(r=>r.map(c=>ll2v(c[0],c[1],1))));
+    draw();
+  }catch(e){}
+}
+
+// ---------- calcoli ----------
+function pos(s,d){
+  const pv=satellite.propagate(s.rec,d);if(!pv||!pv.position)return null;
+  const g=satellite.gstime(d),gd=satellite.eciToGeodetic(pv.position,g),v=pv.velocity;
+  return{lat:gd.latitude/R,lon:satellite.degreesLong(gd.longitude),alt:gd.height,v:Math.hypot(v.x,v.y,v.z)};
+}
+function sun(d){
+  const n=(d-946728e6)/864e5,L=280.46+.9856474*n,g=(357.528+.9856003*n)*R;
+  const lm=(L+1.915*Math.sin(g)+.02*Math.sin(2*g))*R,e=(23.439-4e-7*n)*R;
+  const dec=Math.asin(Math.sin(e)*Math.sin(lm))/R,ra=Math.atan2(Math.cos(e)*Math.sin(lm),Math.cos(lm))/R;
+  return{dec,lon:wrap(ra-(280.46061837+360.98564736629*n))};
+}
+function period(s){return 2*Math.PI/s.rec.no}
+function epoch(s){const y=s.rec.epochyr<57?2000+s.rec.epochyr:1900+s.rec.epochyr;return new Date(Date.UTC(y,0,1)+(s.rec.epochdays-1)*864e5)}
+// ---------- data e ora della mappa (tempo reale oppure simulato) ----------
+let simT=null;
+function NOW(){return simT==null?new Date():new Date(simT)}
+const toLocalInput=ms=>new Date(ms-new Date(ms).getTimezoneOffset()*6e4).toISOString().slice(0,16);
+function syncTime(){
+  $('#tn').classList.toggle('on',simT==null);
+  $('#clk').style.color=simT==null?'':'var(--acc)';
+  if(document.activeElement!==$('#dt'))$('#dt').value=toLocalInput(simT==null?Date.now():simT);
+}
+function setSim(ms){simT=ms;syncTime();update()}
+function track(s){
+  const t0=NOW().getTime();
+  if(s.tr&&Math.abs(t0-s.trT)<2e4)return s.tr;
+  const P=period(s),pts=[];
+  for(let i=0;i<=120;i++){const p=pos(s,new Date(t0+i*P/120*6e4));if(p)pts.push([p.lon,p.lat,p.alt])}
+  s.trT=t0;return s.tr=pts;
+}
+
+// ---------- disegno ----------
+const PT=10,PB=10;let inited=false;
+const zMin=()=>H>0?Math.max(.5,(H-PT-PB)/H):1;
+const sc=()=>H/180*view.z,px=l=>W/2+(l-view.lon)*sc(),py=l=>H/2-(l-view.lat)*sc();
+function size(){
+  const dpr=devicePixelRatio||1,r=cv.parentElement.getBoundingClientRect();
+  W=r.width;H=r.height;
+  if(H>0&&!inited){inited=true;view.z=zMin();view.lat=(PT-PB)/2/sc()}
+  if(view.z<zMin())view.z=zMin();
+  cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);draw();
+}
+function draw(){
+  if(!W)return;
+  ctx.clearRect(0,0,W,H);
+  if(m3){draw3();return}
+  // in 2D i poli restano visibili: sotto la barra in alto e sopra il margine in basso
+  {const k=sc(),half=H/2/k,hi=90+PT/k-half,lo=-90-PB/k+half;view.lat=lo<=hi?Math.max(lo,Math.min(hi,view.lat)):(lo+hi)/2}
+  // griglia
+  ctx.strokeStyle='#161c24';ctx.lineWidth=1;ctx.beginPath();
+  for(let l=-90;l<=90;l+=30){ctx.moveTo(0,py(l));ctx.lineTo(W,py(l))}
+  for(let l=-540;l<=540;l+=30){const X=px(l);ctx.moveTo(X,py(90));ctx.lineTo(X,py(-90))}
+  ctx.stroke();
+  // terre
+  if(land){
+    ctx.fillStyle='#141a22';ctx.strokeStyle='#232c37';
+    for(const o of[-360,0,360]){
+      ctx.beginPath();
+      for(const p of land)for(const ring of p){ring.forEach((c,i)=>{const X=px(c[0]+o),Y=py(c[1]);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y)});ctx.closePath()}
+      ctx.fill('evenodd');ctx.stroke();
+    }
+  }
+  // notte
+  const s=sun(NOW().getTime()),t=Math.tan(s.dec*R)||1e-6,pts=[];
+  for(let l=-180;l<=180;l+=4)pts.push([l,Math.atan(-Math.cos((l-s.lon)*R)/t)/R]);
+  const pole=s.dec>=0?-90:90;ctx.fillStyle='rgba(0,0,0,.4)';
+  for(const o of[-360,0,360]){
+    ctx.beginPath();pts.forEach((p,i)=>{const X=px(p[0]+o),Y=py(p[1]);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y)});
+    ctx.lineTo(px(180+o),py(pole));ctx.lineTo(px(-180+o),py(pole));ctx.closePath();ctx.fill();
+  }
+  // traccia orbita
+  if(sel){
+    const tr=track(sel);ctx.strokeStyle='rgba(242,184,75,.75)';ctx.lineWidth=1.5;
+    for(const o of[-360,0,360]){
+      ctx.beginPath();
+      tr.forEach((p,i)=>{const X=px(p[0]+o),Y=py(p[1]);if(i===0||Math.abs(p[0]-tr[i-1][0])>180)ctx.moveTo(X,Y);else ctx.lineTo(X,Y)});
+      ctx.stroke();
+    }
+  }
+  // osservatore
+  if(obs){const X=W/2+wrap(obs.lon-view.lon)*sc(),Y=py(obs.lat);ctx.strokeStyle='#7b8490';ctx.lineWidth=1.5;ctx.strokeRect(X-4,Y-4,8,8)}
+  // satelliti
+  const few=sats.length<=40;ctx.font='11px system-ui';
+  for(const q of sats){
+    q.X=q.Y=-99;const p=q.p;if(!p||q===sel)continue;
+    const X=W/2+wrap(p.lon-view.lon)*sc(),Y=py(p.lat);q.X=X;q.Y=Y;
+    if(X<-10||X>W+10||Y<-10||Y>H+10)continue;
+    ctx.fillStyle='rgba(232,234,237,.75)';ctx.beginPath();ctx.arc(X,Y,2,0,7);ctx.fill();
+    if(few){ctx.fillStyle='#7b8490';ctx.fillText(q.name,X+6,Y+3)}
+  }
+  if(sel&&sel.p){
+    const X=W/2+wrap(sel.p.lon-view.lon)*sc(),Y=py(sel.p.lat);sel.X=X;sel.Y=Y;
+    ctx.fillStyle='#f2b84b';ctx.beginPath();ctx.arc(X,Y,5,0,7);ctx.fill();
+    ctx.strokeStyle='rgba(242,184,75,.4)';ctx.beginPath();ctx.arc(X,Y,10,0,7);ctx.stroke();
+    ctx.fillStyle='#e8eaed';ctx.font='12px system-ui';ctx.fillText(sel.name,X+14,Y+4);
+  }
+}
+// ---------- vista 3D (proiezione ortografica) ----------
+function ll2v(lon,lat,r){const a=lon*R,b=lat*R;return[r*Math.cos(b)*Math.cos(a),r*Math.cos(b)*Math.sin(a),r*Math.sin(b)]}
+function zoomBy(f){if(m3)view.z3=Math.max(.12,Math.min(4,view.z3*f));else view.z=Math.max(zMin(),Math.min(8,view.z*f))}
+// Ritaglia un anello sull'emisfero visibile (x' >= 0). I tratti visibili vengono ricongiunti lungo il bordo del disco:
+// dalla fine di ciascun tratto si va, nel verso dell'anello, al primo ingresso successivo. dir=1 per i contorni delle terre,
+// dir=-1 per i buchi (laghi, mari interni). Restituisce una lista di contorni chiusi in coordinate [x',y',z'].
+function clipRing(q,dir){
+  const n=q.length,TAU=2*Math.PI;let s0=-1;
+  for(let i=0;i<n;i++)if(q[i][0]>=0&&q[(i+n-1)%n][0]<0){s0=i;break}
+  if(s0<0)return q[0][0]>=0?[q]:[];
+  const cut=(A,B)=>{const t=A[0]/(A[0]-B[0]),y=A[1]+t*(B[1]-A[1]),z=A[2]+t*(B[2]-A[2]),d=Math.hypot(y,z)||1;return[0,y/d,z/d]};
+  const segs=[];let cur=[cut(q[(s0+n-1)%n],q[s0]),q[s0]];
+  for(let k=0;k<n-1;k++){
+    const A=q[(s0+k)%n],B=q[(s0+k+1)%n],ai=A[0]>=0,bi=B[0]>=0;
+    if(ai&&bi)cur.push(B);
+    else if(ai){cur.push(cut(A,B));segs.push(cur);cur=null}
+    else if(bi)cur=[cut(A,B),B];
+  }
+  if(cur)segs.push(cur);
+  const ang=p=>Math.atan2(-p[2],p[1]),sa=segs.map(g=>ang(g[0])),ea=segs.map(g=>ang(g[g.length-1])),used=segs.map(()=>false),out=[];
+  for(let i=0;i<segs.length;i++){
+    if(used[i])continue;
+    const loop=[];let c=i,guard=0;
+    do{
+      used[c]=true;for(const p of segs[c])loop.push(p);
+      let best=-1,bd=1e9;
+      for(let j=0;j<segs.length;j++){
+        if(used[j]&&j!==i)continue;
+        const d=(((dir>0?sa[j]-ea[c]:ea[c]-sa[j])%TAU)+TAU)%TAU;if(d<bd){bd=d;best=j}
+      }
+      if(best<0)break;
+      const m=Math.ceil(bd/(Math.PI/36));
+      for(let t=1;t<m;t++){const a=ea[c]+dir*bd*t/m;loop.push([0,Math.cos(a),-Math.sin(a)])}
+      c=best;
+    }while(c!==i&&++guard<=segs.length);
+    out.push(loop);
+  }
+  return out;
+}
+function draw3(){
+  const Rp=Math.min(W,H)*.36*view.z3,cx=W/2,cy=H*.46;
+  const l0=view.lon*R,p0=view.lat*R,cl=Math.cos(l0),sl=Math.sin(l0),cp=Math.cos(p0),sp=Math.sin(p0);
+  // restituisce [X,Y,profondità,raggio² sullo schermo]
+  const P=(v)=>{const x1=v[0]*cl+v[1]*sl,y1=-v[0]*sl+v[1]*cl,xd=x1*cp+v[2]*sp,zd=-x1*sp+v[2]*cp;return[cx+y1*Rp,cy-zd*Rp,xd,y1*y1+zd*zd]};
+  // sfera
+  ctx.beginPath();ctx.arc(cx,cy,Rp,0,7);ctx.fillStyle='#10151c';ctx.fill();
+  ctx.strokeStyle='#2a3541';ctx.lineWidth=1;ctx.stroke();
+  // griglia
+  ctx.strokeStyle='#18202a';ctx.beginPath();
+  const seg=a=>{let on=false;for(const v of a){const q=P(v);if(q[2]>=0){on?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]);on=true}else on=false}};
+  for(let l=-180;l<180;l+=30){const a=[];for(let t=-90;t<=90;t+=6)a.push(ll2v(l,t,1));seg(a)}
+  for(let t=-60;t<=60;t+=30){const a=[];for(let l=-180;l<=180;l+=6)a.push(ll2v(l,t,1));seg(a)}
+  ctx.stroke();
+  // terre: ogni contorno viene ritagliato sull'emisfero visibile
+  if(landV){
+    const V=v=>{const x1=v[0]*cl+v[1]*sl,y1=-v[0]*sl+v[1]*cl;return[x1*cp+v[2]*sp,y1,-x1*sp+v[2]*cp]};
+    ctx.beginPath();
+    for(const p of landV)p.forEach((ring,ri)=>{
+      for(const lp of clipRing(ring.map(V),ri?-1:1)){
+        lp.forEach((u,i)=>{const X=cx+u[1]*Rp,Y=cy-u[2]*Rp;i?ctx.lineTo(X,Y):ctx.moveTo(X,Y)});
+        ctx.closePath();
+      }
+    });
+    ctx.fillStyle='#1b2430';ctx.strokeStyle='#2a3541';ctx.fill('evenodd');ctx.stroke();
+  }
+  // posizione dell'osservatore
+  if(obs){const q=P(ll2v(obs.lon,obs.lat,1));if(q[2]>0){ctx.strokeStyle='#7b8490';ctx.lineWidth=1.5;ctx.strokeRect(q[0]-4,q[1]-4,8,8)}}
+  // orbita del satellite selezionato, alla sua quota (la parte dietro la Terra è attenuata)
+  if(sel){
+    const qs=track(sel).map(p=>{const q=P(ll2v(p[0],p[1],1+(p[2]||0)/6371));q.h=q[2]<0&&q[3]<1;return q});
+    ctx.lineWidth=1.5;
+    for(const back of[true,false]){
+      ctx.beginPath();ctx.strokeStyle=back?'rgba(242,184,75,.18)':'rgba(242,184,75,.85)';
+      for(let i=1;i<qs.length;i++){const a=qs[i-1],b=qs[i];if((a.h&&b.h)!==back)continue;ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1])}
+      ctx.stroke();
+    }
+  }
+  // satelliti
+  const few=sats.length<=40;ctx.font='11px system-ui';
+  for(const s of sats){
+    s.X=s.Y=-99;const p=s.p;if(!p||s===sel)continue;
+    const q=P(ll2v(p.lon,p.lat,1+p.alt/6371));if(q[2]<0&&q[3]<1)continue;
+    s.X=q[0];s.Y=q[1];
+    ctx.fillStyle='rgba(232,234,237,.8)';ctx.beginPath();ctx.arc(q[0],q[1],2,0,7);ctx.fill();
+    if(few){ctx.fillStyle='#7b8490';ctx.fillText(s.name,q[0]+6,q[1]+3)}
+  }
+  if(sel&&sel.p){
+    const q=P(ll2v(sel.p.lon,sel.p.lat,1+sel.p.alt/6371)),hid=q[2]<0&&q[3]<1;
+    if(!hid){
+      sel.X=q[0];sel.Y=q[1];
+      ctx.fillStyle='#f2b84b';ctx.beginPath();ctx.arc(q[0],q[1],5,0,7);ctx.fill();
+      ctx.strokeStyle='rgba(242,184,75,.4)';ctx.beginPath();ctx.arc(q[0],q[1],10,0,7);ctx.stroke();
+      ctx.fillStyle='#e8eaed';ctx.font='12px system-ui';ctx.fillText(sel.name,q[0]+14,q[1]+4);
+    }
+  }
+}
+// ---------- Stato sotto il satellite ----------
+// Nomi in italiano per i paesi dei dati world-atlas (gli altri restano con il nome originale)
+const IT={"W. Sahara":"Sahara Occidentale","United States of America":"Stati Uniti","Kazakhstan":"Kazakistan","Papua New Guinea":"Papua Nuova Guinea","Chile":"Cile","Dem. Rep. Congo":"Rep. Dem. del Congo","Chad":"Ciad","Dominican Rep.":"Rep. Dominicana","Falkland Is.":"Isole Falkland","Norway":"Norvegia","Greenland":"Groenlandia","Fr. S. Antarctic Lands":"Terre Australi Francesi","Timor-Leste":"Timor Est","South Africa":"Sudafrica","Mexico":"Messico","Brazil":"Brasile","Peru":"Perù","France":"Francia","Jamaica":"Giamaica","Cameroon":"Camerun","Côte d'Ivoire":"Costa d'Avorio","Central African Rep.":"Rep. Centrafricana","Congo":"Rep. del Congo","Eq. Guinea":"Guinea Equatoriale","Mozambique":"Mozambico","eSwatini":"Eswatini","Israel":"Israele","Lebanon":"Libano","Jordan":"Giordania","United Arab Emirates":"Emirati Arabi Uniti","Cambodia":"Cambogia","Thailand":"Thailandia","North Korea":"Corea del Nord","South Korea":"Corea del Sud","Tajikistan":"Tagikistan","Kyrgyzstan":"Kirghizistan","Syria":"Siria","Sweden":"Svezia","Belarus":"Bielorussia","Ukraine":"Ucraina","Poland":"Polonia","Hungary":"Ungheria","Lithuania":"Lituania","Latvia":"Lettonia","Germany":"Germania","Greece":"Grecia","Turkey":"Turchia","Croatia":"Croazia","Switzerland":"Svizzera","Luxembourg":"Lussemburgo","Belgium":"Belgio","Netherlands":"Paesi Bassi","Portugal":"Portogallo","Spain":"Spagna","Ireland":"Irlanda","New Caledonia":"Nuova Caledonia","Solomon Is.":"Isole Salomone","New Zealand":"Nuova Zelanda","China":"Cina","Italy":"Italia","Denmark":"Danimarca","United Kingdom":"Regno Unito","Iceland":"Islanda","Azerbaijan":"Azerbaigian","Philippines":"Filippine","Finland":"Finlandia","Slovakia":"Slovacchia","Czechia":"Rep. Ceca","Japan":"Giappone","Saudi Arabia":"Arabia Saudita","Antarctica":"Antartide","N. Cyprus":"Cipro del Nord","Cyprus":"Cipro","Morocco":"Marocco","Egypt":"Egitto","Libya":"Libia","Ethiopia":"Etiopia","Djibouti":"Gibuti","Bosnia and Herz.":"Bosnia ed Erzegovina","Macedonia":"Macedonia del Nord","Trinidad and Tobago":"Trinidad e Tobago","S. Sudan":"Sudan del Sud","Fiji":"Figi","Palestine":"Palestina"};
+let CT=null;
+function inRing(r,x,y){let c=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const a=r[i],b=r[j];if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])c=!c}return c}
+async function loadCountries(){
+  try{
+    let j=localStorage.getItem('countries');
+    if(!j){j=await (await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')).text();try{localStorage.setItem('countries',j)}catch(e){}}
+    const t=JSON.parse(j),f=topojson.feature(t,t.objects.countries);
+    CT=f.features.map(ft=>{
+      const g=ft.geometry,polys=(g.type==='Polygon'?[g.coordinates]:g.coordinates).map(p=>{
+        const rings=p.map(fixRing);let a=1e9,b=-1e9,c=1e9,d=-1e9;
+        for(const q of rings[0]){if(q[0]<a)a=q[0];if(q[0]>b)b=q[0];if(q[1]<c)c=q[1];if(q[1]>d)d=q[1]}
+        return{rings,a,b,c,d};
+      });
+      return{name:IT[ft.properties.name]||ft.properties.name,polys};
+    });
+    card();
+  }catch(e){}
+}
+// Stato che si trova sotto il punto (lat, lon), oppure null
+function countryAt(lat,lon){
+  if(!CT)return null;
+  for(const c of CT)for(const p of c.polys){
+    if(lat<p.c||lat>p.d)continue;
+    for(const o of[0,360,-360]){
+      const x=lon+o;if(x<p.a||x>p.b)continue;
+      let n=0;for(const r of p.rings)if(inRing(r,x,lat))n++;
+      if(n%2)return c.name;
+    }
+  }
+  return null;
+}
+// Mare o oceano, in modo approssimato (solo per i punti senza Stato)
+function waterAt(lat,lon){
+  const B=(a,b,c,d)=>lat>=a&&lat<=b&&lon>=c&&lon<=d;
+  if(lat>=70)return'Oceano Artico';
+  if(lat<=-60)return'Oceano Meridionale';
+  if(B(41,47,27.5,41.8))return'Mar Nero';
+  if(B(36.5,47.2,46.5,54.5))return'Mar Caspio';
+  if(B(54,66,9.5,30.5))return'Mar Baltico';
+  if(B(30,46,-5.6,36.5))return'Mar Mediterraneo';
+  if(B(12,28.5,32.5,43.5))return'Mar Rosso';
+  if(B(17,31,-98,-80))return'Golfo del Messico';
+  if(lon>=147||lon<=-80)return'Oceano Pacifico';
+  if(lon>=114)return lat>-10?'Oceano Pacifico':'Oceano Indiano';
+  if(lon>=20)return lat<30?'Oceano Indiano':'Mare aperto';
+  return'Oceano Atlantico';
+}
+function whereIs(lat,lon){return CT?(countryAt(lat,lon)||waterAt(lat,lon)):'…'}
+function card(){
+  const c=$('#card');
+  if(!sel||!sel.p||tab!=='map'){c.hidden=true;return}
+  const p=sel.p,i=sel.rec.inclo/R;c.hidden=false;
+  const dd=Math.abs(NOW()-epoch(sel))/864e5,warn=dd>7?'<div class="m" style="font-size:12px;margin-top:8px">Attenzione: la data è a '+Math.round(dd)+' giorni dall’epoca del TLE, la posizione è poco precisa.</div>':'';
+  const it=[['Latitudine',p.lat.toFixed(2)+'°'],['Longitudine',p.lon.toFixed(2)+'°'],['Sopra',whereIs(p.lat,p.lon)],['Epoca TLE',epoch(sel).toISOString().slice(0,10)],
+    ['Quota',Math.round(p.alt)+' km'],['Velocità',p.v.toFixed(2)+' km/s'],['Periodo',period(sel).toFixed(1)+' min'],['Inclinazione',i.toFixed(1)+'°']];
+  c.innerHTML='<b>'+esc(sel.name)+'</b><span>NORAD '+esc(sel.id)+'</span><div class="g">'+it.map(a=>'<div'+(a[2]?' style="grid-column:span 2"':'')+'><i>'+a[0]+'</i>'+esc(a[1])+'</div>').join('')+'</div>'+warn;
+}
+function update(){
+  const d=NOW();for(const s of sats)s.p=pos(s,d);
+  $('#clk').textContent=simT==null?d.toLocaleTimeString('it-IT'):d.toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  if(simT==null)syncTime();
+  draw();card();
+  if(tab==='pass'&&selPass)drawSky();
+}
+
+// ---------- interazione mappa ----------
+const ptrs=new Map();let moved=0,pd=0;
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,[e.clientX,e.clientY]);moved=0;pd=0});
+cv.addEventListener('pointermove',e=>{
+  if(!ptrs.has(e.pointerId))return;
+  const o=ptrs.get(e.pointerId),n=[e.clientX,e.clientY];
+  if(ptrs.size===1){const k=m3?Math.min(W,H)*.36*view.z3*R:sc();view.lon=wrap(view.lon-(n[0]-o[0])/k);view.lat+=(n[1]-o[1])/k;view.lat=Math.max(-85,Math.min(85,view.lat));moved+=Math.abs(n[0]-o[0])+Math.abs(n[1]-o[1])}
+  ptrs.set(e.pointerId,n);
+  if(ptrs.size===2){
+    const [a,b]=[...ptrs.values()],d=Math.hypot(a[0]-b[0],a[1]-b[1]);
+    if(pd)zoomBy(d/pd);pd=d;moved=99;
+  }
+  draw();
+});
+cv.addEventListener('pointerup',e=>{
+  ptrs.delete(e.pointerId);
+  if(moved<8&&ptrs.size===0){
+    const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;let best=null,bd=900;
+    for(const s of sats){const d=(s.X-x)**2+(s.Y-y)**2;if(d<bd){bd=d;best=s}}
+    sel=best;draw();card();renderPass();
+  }
+});
+$('#zi').onclick=()=>{zoomBy(1.5);draw()};
+$('#zo').onclick=()=>{zoomBy(1/1.5);draw()};
+$('#dt').onchange=e=>{const v=e.target.value;if(v){const t=new Date(v).getTime();if(isFinite(t))setSim(t)}};
+$('#tm').onclick=()=>setSim((simT==null?Date.now():simT)-36e5);
+$('#tp').onclick=()=>setSim((simT==null?Date.now():simT)+36e5);
+$('#tn').onclick=()=>{simT=null;syncTime();update()};
+$('#zm').onclick=()=>{m3=!m3;$('#zm').textContent=m3?'2D':'3D';draw()};
+
+// ---------- elenco ----------
+function renderList(){
+  const q=$('#q').value.trim().toLowerCase(),box=$('#rows');
+  const r=sats.filter(s=>!q||s.name.toLowerCase().includes(q)||s.id.includes(q)).slice(0,80);
+  box.innerHTML=r.length?'':'<p class="m">Nessun satellite trovato.</p>';
+  if(/^\d{1,9}$/.test(q)){
+    const b=document.createElement('button');b.className='btn';b.textContent='Mostra solo NORAD '+q;
+    b.style.margin='4px 0 10px';b.onclick=()=>loadOne(q);box.prepend(b);
+  }
+  r.forEach(s=>{
+    const d=document.createElement('div');d.className='row';
+    d.innerHTML='<div>'+esc(s.name)+'</div><span>'+esc(s.id)+'</span>';
+    d.onclick=()=>{sel=s;if(s.p){view.lon=s.p.lon;view.lat=s.p.lat}show('map');renderPass()};
+    box.appendChild(d);
+  });
+}
+$('#q').oninput=renderList;
+$('#q').onkeydown=e=>{const v=$('#q').value.trim();if(e.key==='Enter'&&/^\d{1,9}$/.test(v))loadOne(v)};
+
+// ---------- passaggi ----------
+function passes(s){
+  const og={latitude:obs.lat*R,longitude:obs.lon*R,height:.1},out=[],t0=Date.now();let cur=null;
+  for(let k=0;k<2880;k++){
+    const d=new Date(t0+k*3e4),pv=satellite.propagate(s.rec,d);if(!pv||!pv.position)continue;
+    const la=satellite.ecfToLookAngles(og,satellite.eciToEcf(pv.position,satellite.gstime(d))),el=la.elevation/R;
+    if(el>0){if(!cur)cur={start:d,max:el,az:la.azimuth/R};cur.end=d;if(el>cur.max)cur.max=el}
+    else if(cur){out.push(cur);cur=null}
+  }
+  if(cur)out.push(cur);
+  return out.filter(p=>p.max>=10);
+}
+// ---------- grafico della volta celeste ----------
+let PL=[],selPass=null;
+const C16=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO'];
+const card16=a=>C16[Math.round(a/22.5)%16];
+const hms=t=>new Date(t).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+function lookAt(s,d){
+  const og={latitude:obs.lat*R,longitude:obs.lon*R,height:.1},pv=satellite.propagate(s.rec,d);
+  if(!pv||!pv.position)return null;
+  const la=satellite.ecfToLookAngles(og,satellite.eciToEcf(pv.position,satellite.gstime(d)));
+  return{t:d.getTime(),az:((la.azimuth/R)%360+360)%360,el:la.elevation/R,rng:la.rangeSat};
+}
+function skyPts(s,p){
+  const out=[];
+  for(let t=p.start.getTime()-3e4;t<=p.end.getTime()+3e4;t+=5e3){const q=lookAt(s,new Date(t));if(q&&q.el>=0)out.push(q)}
+  return out;
+}
+function selectPass(i){
+  selPass=PL[i];if(!selPass)return;
+  selPass.pts=skyPts(sel,selPass);
+  document.querySelectorAll('#pass .row[data-i]').forEach((r,j)=>r.classList.toggle('on',j===i));
+  $('#skyc').hidden=false;drawSky();$('#pass').scrollTop=0;
+}
+function drawSky(){
+  const p=selPass,pts=p&&p.pts;if(!pts||!pts.length||!sel||!obs)return;
+  const c=$('#skc'),S=c.getBoundingClientRect().width;if(!S)return;
+  const dpr=devicePixelRatio||1;c.width=S*dpr;c.height=S*dpr;
+  const g=c.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
+  const cx=S/2,cy=S/2,Rr=S/2-24;
+  // visto guardando il cielo: nord in alto, est a sinistra, zenit al centro, orizzonte sul bordo
+  const xy=(az,el)=>{const r=(90-el)/90*Rr,a=az*R;return[cx-r*Math.sin(a),cy-r*Math.cos(a)]};
+  g.lineWidth=1;g.strokeStyle='#232c37';
+  [0,30,60].forEach(e=>{g.beginPath();g.arc(cx,cy,(90-e)/90*Rr,0,7);g.stroke()});
+  g.strokeStyle='#18202a';g.beginPath();
+  for(let a=0;a<360;a+=30){const q=xy(a,0);g.moveTo(cx,cy);g.lineTo(q[0],q[1])}
+  g.stroke();
+  g.fillStyle='#7b8490';g.font='12px system-ui';g.textBaseline='middle';g.textAlign='center';
+  [['N',0],['E',90],['S',180],['O',270]].forEach(([t,a])=>{g.fillText(t,cx-(Rr+13)*Math.sin(a*R),cy-(Rr+13)*Math.cos(a*R))});
+  g.font='10px system-ui';g.textAlign='left';
+  [30,60].forEach(e=>g.fillText(e+'°',cx+3,cy-(90-e)/90*Rr-7));
+  // traiettoria
+  g.strokeStyle='#f2b84b';g.lineWidth=2;g.lineJoin='round';g.beginPath();
+  pts.forEach((q,i)=>{const [X,Y]=xy(q.az,q.el);i?g.lineTo(X,Y):g.moveTo(X,Y)});g.stroke();
+  const a0=pts[0],a1=pts[pts.length-1],mx=pts.reduce((m,q)=>q.el>m.el?q:m,pts[0]);
+  const lab=(q,txt,out)=>{
+    const [X,Y]=xy(q.az,q.el);g.fillStyle='#e8eaed';g.font='11px system-ui';
+    if(out){const dx=X-cx,dy=Y-cy,d=Math.hypot(dx,dy)||1;g.textAlign=dx<0?'right':'left';g.fillText(txt,X+dx/d*10+(dx<0?-2:2),Y+dy/d*10)}
+    else{g.textAlign='left';g.fillText(txt,X+8,Y-9)}
+  };
+  let [X,Y]=xy(a0.az,a0.el);g.fillStyle='#0c0f14';g.strokeStyle='#e8eaed';g.lineWidth=1.5;g.beginPath();g.arc(X,Y,4,0,7);g.fill();g.stroke();lab(a0,hms(a0.t).slice(0,5),true);
+  [X,Y]=xy(a1.az,a1.el);g.fillStyle='#e8eaed';g.beginPath();g.arc(X,Y,3.5,0,7);g.fill();lab(a1,hms(a1.t).slice(0,5),true);
+  [X,Y]=xy(mx.az,mx.el);g.fillStyle='#f2b84b';g.beginPath();g.arc(X,Y,5,0,7);g.fill();lab(mx,Math.round(mx.el)+'°',false);
+  // posizione attuale, se il satellite è in vista
+  const now=lookAt(sel,new Date()),live=now&&now.el>=0?now:null;
+  if(live){
+    [X,Y]=xy(live.az,live.el);g.strokeStyle='rgba(242,184,75,.5)';g.lineWidth=1.5;g.beginPath();g.arc(X,Y,10,0,7);g.stroke();
+    g.fillStyle='#fff';g.beginPath();g.arc(X,Y,3,0,7);g.fill();
+  }
+  const row=(l,q)=>'<i>'+l+'</i><span>'+hms(q.t)+'</span><span>'+Math.round(q.az)+'° '+card16(q.az)+'</span><span>'+Math.round(q.el)+'°</span>';
+  $('#skh').innerHTML='<b>'+esc(sel.name)+'</b> <span class="m">'+p.start.toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'})+'</span>';
+  const dur=Math.round((a1.t-a0.t)/1000);
+  $('#skt').innerHTML='<div class="tb"><i></i><i>Ora</i><i>Azimut</i><i>Elev.</i>'+row('Inizio',a0)+row('Culmine',mx)+row('Fine',a1)+(live?row('Adesso',live):'')+'</div>'+
+    '<p class="m" style="margin-top:10px;font-size:13px">Durata '+Math.floor(dur/60)+' min '+String(dur%60).padStart(2,'0')+' s, distanza al culmine '+Math.round(mx.rng)+' km'+(live?', adesso '+Math.round(live.rng)+' km':'')+'. Azimut da nord in senso orario; grafico visto guardando verso l’alto.</p>';
+}
+function renderPass(){
+  const el=$('#pass');
+  if(!sel){el.innerHTML='<p class="m">Scegli un satellite dalla mappa o dall’elenco per vedere i suoi passaggi.</p>';return}
+  if(!obs){
+    el.innerHTML='<p class="m">Serve la tua posizione per calcolare i passaggi.</p><div class="f"><input id="la" placeholder="Latitudine" inputmode="decimal"><input id="lo" placeholder="Longitudine" inputmode="decimal"></div><button class="btn" id="ok">Calcola</button> <button class="btn" id="gps" style="background:#1a2029;color:#e8eaed">Usa il GPS</button>';
+    $('#ok').onclick=()=>{const a=parseFloat($('#la').value.replace(',','.')),b=parseFloat($('#lo').value.replace(',','.'));if(isFinite(a)&&isFinite(b)){obs={lat:a,lon:b};renderPass();draw()}};
+    $('#gps').onclick=()=>navigator.geolocation&&navigator.geolocation.getCurrentPosition(p=>{obs={lat:p.coords.latitude,lon:p.coords.longitude};renderPass();draw()},()=>status('Posizione non disponibile: inseriscila a mano.'));
+    return;
+  }
+  PL=passes(sel);selPass=null;
+  el.innerHTML='<div id="skyc" hidden><div id="skh"></div><canvas id="skc"></canvas><div id="skt"></div></div>'+
+    '<p><b>'+esc(sel.name)+'</b> <span class="m">prossime 24 ore, elevazione massima da 10°. Tocca un passaggio per vederlo nel cielo.</span></p>'+
+    (PL.length?PL.map((p,i)=>'<div class="row" data-i="'+i+'"><div>'+p.start.toLocaleString('it-IT',{weekday:'short',hour:'2-digit',minute:'2-digit'})+'</div><span>'+Math.max(1,Math.round((p.end-p.start)/6e4))+' min, max '+Math.round(p.max)+'°, da '+Math.round(p.az)+'° '+card16(p.az)+'</span></div>').join(''):'<p class="m">Nessun passaggio utile nelle prossime 24 ore.</p>');
+  el.querySelectorAll('.row[data-i]').forEach(r=>r.onclick=()=>selectPass(+r.dataset.i));
+}
+
+// ---------- collisioni ----------
+// Fonte principale: SOCRATES Plus di CelesTrak (congiunzioni sotto i 5 km nei 7 giorni successivi al calcolo).
+// I CDM del 18th SDS non sono pubblici (servono credenziali Space-Track), quindi non sono usati.
+const SOC='https://celestrak.org/SOCRATES/table-socrates.php';
+const COL={tok:0,tok2:0,sort:'tca',for:null,soc:null,err:null,busy:false,loc:null,locFor:null,busy2:false,prog:0,nc:0,view:{soc:[],loc:[]},built:false};
+const MON={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+const CTD=/(\d{4}) (\w{3}) (\d{1,2}) (\d{2}):(\d{2}):(\d{2})/;
+function ctDate(s){const x=CTD.exec(s||'');return x&&x[2] in MON?Date.UTC(+x[1],MON[x[2]],+x[3],+x[4],+x[5],+x[6]):null}
+// Ogni congiunzione occupa due righe: la prima ha l'ora (TCA), la seconda no. Le celle si riconoscono dal
+// contenuto, non dalla posizione, così il parser regge anche se la tabella unisce delle celle (rowspan).
+const TCAX=/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/;
+function objRow(c){
+  const i=c.findIndex((x,j)=>j>0&&/\[[^\]]*\]\s*$/.test(x)&&/^\d+$/.test(c[j-1]));
+  if(i<0)return null;
+  const tail=c.slice(i+1),t=tail.find(x=>TCAX.test(x)),n=tail.filter(x=>!TCAX.test(x)&&x!==''&&isFinite(+x.replace(',','.')));
+  return{id:c[i-1],n:c[i],dse:+n[0],tca:t?Date.parse(t.trim().replace(' ','T')+'Z'):null,x:+(n[1]),y:+(n[2])};
+}
+function parseSoc(rows){
+  const o=rows.map(objRow).filter(Boolean),out=[];
+  for(let i=0;i+1<o.length;i++){
+    const a=o[i],b=o[i+1];
+    if(a.tca==null||!isFinite(a.tca)||b.tca!=null)continue;
+    out.push({id1:a.id,n1:a.n,dse1:a.dse,id2:b.id,n2:b.n,dse2:b.dse,tca:a.tca,rng:a.x,vel:a.y,pc:b.x,dil:b.y});
+    i++;
+  }
+  return{ev:out,objRows:o.length};
+}
+function parseSocHTML(html){
+  const doc=new DOMParser().parseFromString(html,'text/html');
+  const rows=[...doc.querySelectorAll('tr')].map(tr=>[...tr.cells].map(c=>c.textContent.replace(/\s+/g,' ').trim()));
+  const txt=doc.body?doc.body.textContent:'';
+  const g=re=>{const m=re.exec(txt);return m?ctDate(m[1]):null};
+  const ps=parseSoc(rows);return{ev:ps.ev,objRows:ps.objRows,cur:g(/Data current as of\s*(\d{4} \w{3} \d{1,2} \d{2}:\d{2}:\d{2})/),stop:g(/Stop = (\d{4} \w{3} \d{1,2} \d{2}:\d{2}:\d{2})/),valid:/Data current as of|records? found/i.test(txt)};
+}
+// l'oggetto "altro" rispetto al satellite scelto
+function normEv(e,id){
+  const me=+e.id1===+id,on=me?e.n2:e.n1,m=/^(.*?)\s*\[(.*?)\]\s*$/.exec(on);
+  return{oid:me?e.id2:e.id1,on:m?m[1]:on,ost:m?m[2]:'',dse:me?e.dse1:e.dse2,odse:me?e.dse2:e.dse1,tca:e.tca,rng:e.rng,vel:e.vel,pc:e.pc,dil:e.dil};
+}
+async function fetchSoc(id,force){
+  const key='soc2:'+id;let c=null;
+  try{c=JSON.parse(localStorage.getItem(key))}catch(e){}
+  if(c&&!Array.isArray(c.ev))c=null;
+  if(c&&Date.now()-c.ts<(force?3e5:18e5))return c;
+  const url=SOC+'?CATNR='+encodeURIComponent(id)+',&ORDER=TCA&MAX=1000';
+  let err='';
+  const ac=new AbortController(),to=setTimeout(()=>ac.abort(),25000);
+  try{
+    const r=await fetch(url,{signal:ac.signal});
+    if(r.status===403||r.status===429)err='CelesTrak ha rifiutato la richiesta (HTTP '+r.status+'): troppe richieste, riprova più tardi.';
+    else if(!r.ok)err='CelesTrak ha risposto con errore HTTP '+r.status+'.';
+    else{
+      const p=parseSocHTML(await r.text());
+      if(!p.valid)err='Risposta di SOCRATES non riconosciuta.';
+      else if(p.objRows>0&&!p.ev.length)err='Ho trovato la tabella di SOCRATES ma non riesco a leggerne le righe (formato cambiato?).';
+      else{
+        const res={ts:Date.now(),cur:p.cur,stop:p.stop,ev:p.ev.map(e=>normEv(e,id))};
+        if(res.ev.length)try{localStorage.setItem(key,JSON.stringify(res))}catch(e){}
+        clearTimeout(to);return res;
+      }
+    }
+  }catch(e){
+    err=navigator.onLine===false?'Sei offline.':e.name==='AbortError'?'SOCRATES non risponde (timeout di 25 secondi).':'Connessione a SOCRATES non riuscita (rete, oppure il sito non accetta la richiesta da questa pagina).';
+  }
+  clearTimeout(to);
+  if(c&&Date.now()-c.ts<864e5)return Object.assign({},c,{warn:err+' Mostro gli ultimi dati salvati.'});
+  return{err};
+}
+// ---------- calcolo locale (riserva): confronto con i satelliti del gruppo caricato, solo con i TLE ----------
+const DTX=new Date(0);
+// prop deve restituire {position:{x,y,z},velocity:{x,y,z}} in un sistema inerziale, oppure null
+function propSat(s,ms){
+  DTX.setTime(ms);const r=satellite.propagate(s.rec,DTX);
+  return r&&r.position&&r.position.x!==undefined&&r.velocity&&r.velocity.x!==undefined?r:null;
+}
+function shellKm(s){const a=Math.cbrt(398600.4418/Math.pow(s.rec.no/60,2)),e=s.rec.ecco;return[a*(1-e)-6378.137,a*(1+e)-6378.137]}
+function shellOverlap(a,b){const A=shellKm(a),B=shellKm(b);return B[0]-30<=A[1]&&B[1]+30>=A[0]}
+const dist3=(a,b)=>Math.hypot(a.position.x-b.position.x,a.position.y-b.position.y,a.position.z-b.position.z);
+async function screenLocal(tg,cands,prop,t0,hours,thr,onProg,stop){
+  const dt=6e4,N=Math.floor(hours*36e5/dt)+1,A=new Float64Array(N*3),ok=new Uint8Array(N),D=new Float64Array(N),CO=600,out=[];
+  for(let k=0;k<N;k++){const r=prop(tg,t0+k*dt);if(r){ok[k]=1;A[3*k]=r.position.x;A[3*k+1]=r.position.y;A[3*k+2]=r.position.z}}
+  const dAt=(s,ms)=>{const a=prop(tg,ms),b=prop(s,ms);return a&&b?dist3(a,b):Infinity};
+  let last=Date.now();
+  for(let ci=0;ci<cands.length;ci++){
+    const s=cands[ci];let any=false;
+    for(let k=0;k<N;k++){
+      if(!ok[k]){D[k]=Infinity;continue}
+      const r=prop(s,t0+k*dt);
+      if(!r){D[k]=Infinity;continue}
+      const d=Math.hypot(r.position.x-A[3*k],r.position.y-A[3*k+1],r.position.z-A[3*k+2]);
+      D[k]=d;if(d<CO)any=true;
+    }
+    if(any)for(let k=1;k<N-1;k++){
+      if(!(D[k]<CO&&D[k]<D[k-1]&&D[k]<=D[k+1]))continue;
+      let lo=t0+(k-1)*dt,hi=t0+(k+1)*dt;
+      for(let it=0;it<28;it++){const m1=lo+(hi-lo)/3,m2=hi-(hi-lo)/3;if(dAt(s,m1)<dAt(s,m2))hi=m2;else lo=m1}
+      const tm=(lo+hi)/2,a=prop(tg,tm),b=prop(s,tm);if(!a||!b)continue;
+      const rng=dist3(a,b);
+      if(rng<=thr)out.push({s,tca:tm,rng,vel:Math.hypot(a.velocity.x-b.velocity.x,a.velocity.y-b.velocity.y,a.velocity.z-b.velocity.z)});
+    }
+    if(Date.now()-last>40){last=Date.now();onProg&&onProg((ci+1)/cands.length);await new Promise(r=>setTimeout(r));if(stop&&stop())return null}
+  }
+  onProg&&onProg(1);
+  return out;
+}
+async function runLocal(){
+  if(!sel||COL.busy2)return;
+  const tg=sel,tok=++COL.tok2;COL.busy2=true;COL.loc=null;COL.locFor=tg.id;COL.prog=0;
+  const cands=sats.filter(s=>s!==tg&&s.id!==tg.id&&shellOverlap(tg,s));COL.nc=cands.length;renderCol();
+  let res=null;
+  try{
+    res=await screenLocal(tg,cands,propSat,Date.now(),72,5,p=>{COL.prog=p;const b=$('#cb div');if(b)b.style.width=Math.round(p*100)+'%'},()=>tok!==COL.tok2||sel!==tg);
+  }catch(e){res=null}
+  if(tok!==COL.tok2)return;
+  COL.busy2=false;
+  COL.loc=res?res.map(x=>({oid:x.s.id,on:x.s.name,ost:'',dse:(x.tca-epoch(tg))/864e5,odse:(x.tca-epoch(x.s))/864e5,tca:x.tca,rng:x.rng,vel:x.vel,pc:NaN,dil:NaN})):null;
+  renderCol();
+}
+// ---------- interfaccia ----------
+const fmtPc=x=>!isFinite(x)?'—':x>=1?'1':x===0?'0':x.toExponential(1);
+function risk(e){
+  if(isFinite(e.pc))return e.pc>=1e-4?'hi':e.pc>=1e-5?'md':'lo';
+  return e.rng<1?'hi':e.rng<3?'md':'lo';
+}
+function eta(ms){
+  if(ms<=0)return'in corso o appena passata';
+  const m=Math.round(ms/6e4),d=Math.floor(m/1440),h=Math.floor(m%1440/60);
+  return'tra '+(d?d+' g '+h+' h':h?h+' h '+(m%60)+' min':(m%60)+' min');
+}
+function sortEv(a){
+  const k=COL.sort,f=k==='pc'?(x,y)=>(isFinite(y.pc)?y.pc:-1)-(isFinite(x.pc)?x.pc:-1):k==='rng'?(x,y)=>x.rng-y.rng:(x,y)=>x.tca-y.tca;
+  return a.slice().sort(f);
+}
+function evHTML(e,i,k){
+  const d=new Date(e.tca),rk=risk(e);
+  const it=[
+    ['Ora locale (TCA)',d.toLocaleString('it-IT',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',second:'2-digit'})],
+    ['UTC',d.toISOString().slice(0,10)+' '+d.toISOString().slice(11,19)],
+    ['Distanza minima',(e.rng<10?e.rng.toFixed(3):e.rng.toFixed(1))+' km'],
+    ['Velocità relativa',isFinite(e.vel)?e.vel.toFixed(2)+' km/s':'—'],
+    ['Prob. massima',fmtPc(e.pc)],
+    ['Soglia diluizione',isFinite(e.dil)?e.dil.toFixed(3)+' km':'—'],
+    ['Età dati al TCA (giorni)',(isFinite(e.dse)?e.dse.toFixed(1):'—')+' · '+(isFinite(e.odse)?e.odse.toFixed(1):'—')]
+  ];
+  return'<div class="ev"><div class="eh"><b>'+esc(e.on)+'</b><span class="pill '+rk+'">'+(isFinite(e.pc)?'Pc '+fmtPc(e.pc):e.rng.toFixed(2)+' km')+'</span></div>'+
+    '<div class="sub">NORAD '+esc(e.oid)+(e.ost?' · stato ['+esc(e.ost)+']':'')+' · '+eta(e.tca-Date.now())+'</div>'+
+    '<div class="eg">'+it.map(a=>'<div><i>'+a[0]+'</i>'+esc(a[1])+'</div>').join('')+'</div>'+
+    '<button class="btn s" data-k="'+k+'" data-i="'+i+'">Mostra sulla mappa a quell’ora</button></div>';
+}
+function colPick(s){sel=s;if(s.p){view.lon=s.p.lon;view.lat=s.p.lat}$('#cq').value='';COL.for=null;renderCol();loadCol()}
+function buildCol(){
+  COL.built=true;
+  $('#col').innerHTML='<input type="search" id="cq" placeholder="Cerca satellite: nome o NORAD"><div id="cr"></div><div id="ch"></div><div id="ce"></div>';
+  $('#cq').oninput=renderCol;
+}
+function renderCol(){
+  if(!COL.built)buildCol();
+  const q=$('#cq').value.trim().toLowerCase(),cr=$('#cr'),ch=$('#ch'),ce=$('#ce');
+  // elenco di scelta: se c'è un testo, o se non c'è ancora un satellite
+  if(q||!sel){
+    const r=sats.filter(s=>!q||s.name.toLowerCase().includes(q)||s.id.includes(q)).slice(0,q?10:8);
+    cr.innerHTML=r.length?'':'<p class="m">Nessun satellite trovato nel gruppo caricato.</p>';
+    r.forEach(s=>{const d=document.createElement('div');d.className='row';d.innerHTML='<div>'+esc(s.name)+'</div><span>'+esc(s.id)+'</span>';d.onclick=()=>colPick(s);cr.appendChild(d)});
+  }else cr.innerHTML='';
+  if(!sel){ch.innerHTML='<p class="m" style="margin-top:10px">Scegli un satellite qui sopra (o dalla mappa e dall’elenco) per vedere le possibili collisioni dei prossimi 3 giorni.</p>';ce.innerHTML='';return}
+  const head='<p style="margin:10px 0 2px"><b>'+esc(sel.name)+'</b> <span class="m">NORAD '+esc(sel.id)+'</span></p>';
+  if(COL.busy){ch.innerHTML=head+'<p class="m">Interrogo SOCRATES…</p>';ce.innerHTML='';return}
+  const now=Date.now(),lim=now+72*36e5;
+  let h=head,b='';
+  if(COL.err)h+='<p class="m" style="margin:6px 0">'+esc(COL.err)+'</p>'+
+    '<button class="btn s2" id="cx">Riprova</button> <a class="lk" target="_blank" rel="noopener" href="'+SOC+'?CATNR='+encodeURIComponent(sel.id)+',&ORDER=TCA&MAX=100">Apri su CelesTrak</a>';
+  else if(COL.soc){
+    const s=COL.soc,ev=s.ev.filter(e=>e.tca>=now-6e5&&e.tca<=lim);
+    COL.view.soc=sortEv(ev);
+    h+='<p class="m" style="font-size:12px;margin:4px 0">Fonte SOCRATES (CelesTrak), congiunzioni sotto i 5 km, prossime 72 ore'+(s.cur?'. Dati calcolati al '+new Date(s.cur).toISOString().slice(0,16).replace('T',' ')+' UTC':'')+'.</p>';
+    if(s.warn)h+='<p class="m" style="font-size:12px;color:var(--acc)">'+esc(s.warn)+'</p>';
+    if(s.stop&&s.stop<lim)h+='<p class="m" style="font-size:12px;color:var(--acc)">Il calcolo SOCRATES copre solo fino al '+new Date(s.stop).toISOString().slice(0,16).replace('T',' ')+' UTC.</p>';
+    h+='<p class="m" style="font-size:12px;margin:4px 0">'+s.ev.length+' congiunzioni in tutto il periodo SOCRATES, '+ev.length+' nelle prossime 72 ore. <a class="lk" style="margin:0" target="_blank" rel="noopener" href="'+SOC+'?CATNR='+encodeURIComponent(sel.id)+',&ORDER=TCA&MAX=100">Confronta su CelesTrak</a></p>';
+    h+='<div class="seg">'+[['tca','Per ora'],['pc','Per rischio'],['rng','Per distanza']].map(a=>'<button data-s="'+a[0]+'"'+(COL.sort===a[0]?' class="on"':'')+'>'+a[1]+'</button>').join('')+'</div>';
+    b=COL.view.soc.length?COL.view.soc.map((e,i)=>evHTML(e,i,'soc')).join(''):'<p class="m">Nessuna congiunzione sotto i 5 km nei prossimi 3 giorni secondo SOCRATES.</p>';
+    b+='<p class="m" style="font-size:12px;margin-top:10px">Pc è la probabilità massima di SOCRATES, un limite superiore molto prudente basato su TLE pubblici: la probabilità reale è di solito molto più bassa. I colori sono una mia scala indicativa (rosso da 1e-4, giallo da 1e-5), non ufficiale. Non sostituisce i dati degli operatori.</p>';
+  }
+  // calcolo locale
+  const gname=GROUPS[group]||'gruppo caricato';
+  let L='<div style="border-top:1px solid var(--line);margin-top:16px;padding-top:12px"><b>Calcolo locale</b> <span class="m" style="font-size:12px">riserva, senza SOCRATES</span>'+
+    '<p class="m" style="font-size:12px;margin:4px 0 8px">Confronta '+esc(sel.name)+' con gli altri satelliti del gruppo «'+esc(gname)+'» ('+sats.length+') nelle prossime 72 ore, soglia 5 km, usando solo i TLE. Non copre tutto il catalogo e non calcola la probabilità. Può richiedere anche un minuto.</p>';
+  if(COL.busy2)L+='<div class="bar" id="cb"><div style="width:'+Math.round(COL.prog*100)+'%"></div></div><p class="m" style="font-size:12px">Confronto con '+COL.nc+' satelliti a quota compatibile…</p>';
+  else L+='<button class="btn s2" id="cl">'+(COL.loc&&COL.locFor===sel.id?'Ricalcola':'Calcola in locale')+'</button>';
+  L+='</div>';
+  let lb='';
+  if(!COL.busy2&&COL.loc&&COL.locFor===sel.id){
+    COL.view.loc=sortEv(COL.loc);
+    lb=COL.view.loc.length?COL.view.loc.map((e,i)=>evHTML(e,i,'loc')).join(''):'<p class="m" style="margin-top:10px">Nessun avvicinamento sotto i 5 km con i satelliti di questo gruppo nei prossimi 3 giorni.</p>';
+  }
+  ch.innerHTML=h;ce.innerHTML=b+L+lb;
+  $('#col').querySelectorAll('.seg button').forEach(x=>x.onclick=()=>{COL.sort=x.dataset.s;renderCol()});
+  ce.querySelectorAll('button[data-k]').forEach(x=>x.onclick=()=>{const e=COL.view[x.dataset.k][+x.dataset.i];if(e){setSim(e.tca);show('map')}});
+  const cl=$('#cl');if(cl)cl.onclick=runLocal;
+  const cx=$('#cx');if(cx)cx.onclick=()=>loadCol(true);
+}
+async function loadCol(force){
+  if(!sel){renderCol();return}
+  const id=sel.id,tok=++COL.tok;
+  COL.tok2++;COL.busy2=false;COL.for=id;COL.err=null;COL.soc=null;COL.busy=true;renderCol();
+  const r=await fetchSoc(id,force);
+  if(tok!==COL.tok)return;
+  COL.busy=false;if(r.err)COL.err=r.err;else COL.soc=r;
+  renderCol();
+}
+
+// ---------- navigazione ----------
+function show(t){
+  tab=t;
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  $('#list').classList.toggle('on',t==='list');$('#pass').classList.toggle('on',t==='pass');$('#col').classList.toggle('on',t==='col');
+  if(t==='pass')renderPass();
+  if(t==='col'){if(sel&&COL.for!==sel.id)loadCol();else renderCol()}
+  card();draw();
+}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.t));
+const gs=$('#grp');
+for(const k in GROUPS){const o=document.createElement('option');o.value=k;o.textContent=GROUPS[k];gs.appendChild(o)}
+gs.onchange=()=>{
+  group=gs.value;if(group==='one')return;
+  const o=gs.querySelector('option[value=one]');if(o)o.remove();
+  load(group);
+};
+
+addEventListener('resize',size);
+syncTime();size();loadLand();loadCountries();load(group);setInterval(update,1000);
+if('serviceWorker' in navigator&&/^https?:/.test(location.protocol))addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+</script>
+</body>
+</html>
