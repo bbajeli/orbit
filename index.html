@@ -32,6 +32,7 @@ nav button{flex:1;background:none;border:0;color:var(--mut);font:inherit;font-si
 nav button.on{color:var(--acc);font-weight:600}
 #card{position:absolute;left:12px;right:12px;bottom:12px;background:rgba(12,15,20,.92);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
 #card b{font-size:16px}#card span{color:var(--mut);font-size:12px;margin-left:8px}
+.zn{margin-top:10px;color:var(--acc);font-size:13px;font-weight:600}
 .g{display:grid;grid-template-columns:1fr 1fr 1.5fr 1.1fr;gap:8px;margin-top:10px}
 .g div{font-size:14px}.g i{display:block;font-style:normal;color:var(--mut);font-size:11px}
 .zoom{position:absolute;right:12px;top:12px;display:flex;flex-direction:column;gap:6px}
@@ -563,6 +564,9 @@ function countryAt(lat,lon){
   return null;
 }
 // Mare o oceano, in modo approssimato (solo per i punti senza Stato)
+// Linea approssimata di separazione tra Atlantico e Pacifico lungo le Americhe: [latitudine, longitudine]
+const AMER=[[-60,-67],[-56,-67],[-30,-65],[0,-70],[8,-80],[12,-87],[17,-93],[22,-100],[31,-105],[60,-105]];
+function amerLon(lat){for(let i=1;i<AMER.length;i++){const a=AMER[i-1],b=AMER[i];if(lat<=b[0])return a[1]+(b[1]-a[1])*(lat-a[0])/(b[0]-a[0])}return -105}
 function waterAt(lat,lon){
   const B=(a,b,c,d)=>lat>=a&&lat<=b&&lon>=c&&lon<=d;
   if(lat>=70)return'Oceano Artico';
@@ -573,20 +577,94 @@ function waterAt(lat,lon){
   if(B(30,46,-5.6,36.5))return'Mar Mediterraneo';
   if(B(12,28.5,32.5,43.5))return'Mar Rosso';
   if(B(17,31,-98,-80))return'Golfo del Messico';
-  if(lon>=147||lon<=-80)return'Oceano Pacifico';
+  if(lon>=147)return'Oceano Pacifico';
   if(lon>=114)return lat>-10?'Oceano Pacifico':'Oceano Indiano';
   if(lon>=20)return lat<30?'Oceano Indiano':'Mare aperto';
-  return'Oceano Atlantico';
+  return lon<amerLon(lat)?'Oceano Pacifico':'Oceano Atlantico';
 }
-function whereIs(lat,lon){return CT?(countryAt(lat,lon)||waterAt(lat,lon)):'…'}
+// Distanza massima (km) entro cui un punto sul mare viene associato al paese più vicino
+const NEAR_KM=100;
+// Paese con il confine più vicino al punto (lat, lon), entro maxKm, e distanza in km; null se nessuno
+function nearestCountry(lat,lon,maxKm){
+  if(!CT)return null;
+  const kx=111.32*Math.cos(lat*R),ky=110.57,dl=Math.min(180,maxKm/Math.max(kx,1)),dp=maxKm/ky;
+  let best=null,bd=maxKm;
+  for(const c of CT)for(const p of c.polys){
+    if(lat<p.c-dp||lat>p.d+dp)continue;
+    for(const o of[0,360,-360]){
+      const x=lon+o;if(x<p.a-dl||x>p.b+dl)continue;
+      for(const r of p.rings)for(let i=1;i<r.length;i++){
+        const ax=(r[i-1][0]-x)*kx,ay=(r[i-1][1]-lat)*ky,dx=(r[i][0]-r[i-1][0])*kx,dy=(r[i][1]-r[i-1][1])*ky,L=dx*dx+dy*dy;
+        let t=L?-(ax*dx+ay*dy)/L:0;t=t<0?0:t>1?1:t;
+        const d=Math.hypot(ax+t*dx,ay+t*dy);
+        if(d<bd){bd=d;best=c.name}
+      }
+    }
+  }
+  return best?{name:best,km:bd}:null;
+}
+// Testo (HTML) per la riga "Sopra": Stato, oppure mare/oceano e, se la costa è vicina, il paese e la distanza
+function whereIs(lat,lon){
+  if(!CT)return'…';
+  const c=countryAt(lat,lon);if(c)return esc(c);
+  const w=esc(waterAt(lat,lon)),n=nearestCountry(lat,lon,NEAR_KM);
+  return n?w+'<br><span class="m" style="font-size:12px">vicino: '+esc(n.name)+', '+Math.max(1,Math.round(n.km/5)*5)+' km</span>':w;
+}
+// ---------- Zone di radiazione: SAA e cuspidi polari ----------
+// Coefficienti IGRF-14 (gradi 1-13) per le epoche 2025.0 e 2030.0, in nT; per le date intermedie si interpola
+const IGRF25=[-29350,-1410.3,4545.5,-2556.2,2950.9,-3133.6,1648.7,-814.2,1360.9,-2404.2,-56.9,1243.8,237.6,453.4,-549.6,894.7,799.6,278.6,55.8,-134,-281.1,212,12,-375.4,-232.9,369,45.3,187.2,220,-138.7,-122.9,-141.9,42.9,20.9,106.2,64.3,63.8,-18.4,76.7,16.8,-115.7,48.9,-40.9,-59.8,14.9,10.9,-60.8,72.8,79.6,-76.9,-48.9,-8.8,-14.4,59.3,-1,15.8,23.5,2.5,-7.4,-11.2,-25.1,14.3,-2.2,23.1,10.9,7.2,-17.5,-12.6,2,11.5,-21.8,-9.7,16.9,12.7,14.9,0.7,-16.8,-5.2,1,3.9,4.7,8,-24.8,3,12.1,-0.2,8.3,-2.5,-3.4,-13.1,-5.3,2.4,7.2,8.6,-0.6,-8.7,0.8,-12.8,9.8,-1.3,-6.4,3.3,0.2,0.1,2,2.5,-1,5.4,-0.5,-9,-0.9,0.4,1.5,-4.2,0.9,-3.8,-2.6,0.9,-3.9,-9,3,-1.4,0,-2.5,2.8,2.4,-0.6,-0.6,0.1,0,0.5,-0.6,-0.3,-0.1,-1.2,1.1,-1.7,-1,-2.9,-0.1,-1.8,2.6,-2.3,-2,-0.1,-1.2,0.4,0.6,1.2,1,-1.2,-1.5,0.6,0,0.5,0.6,0.5,-0.2,-0.1,0.8,-0.5,0.1,-0.2,-0.9,-1.2,0.1,-0.7,0.2,0.2,-0.9,-0.9,0.6,0.7,0.7,1.2,-0.2,-0.3,0.5,-1.3,0.1,-0.1,0.7,0.2,0,-0.2,0.3,0.5,0.2,0.6,0.4,-0.6,-0.5,-0.3,-0.4,-0.5],IGRF30=[-29287,-1360.3,4438,-2612.2,2924.4,-3270.1,1607.2,-869.7,1353.4,-2426.2,-37.9,1245.8,236.6,375.4,-569.1,886.2,788.1,272.1,26.8,-113.5,-254.1,220,-22,-395.9,-229.9,375.5,42.8,187.2,230.5,-135.2,-120.4,-130.4,51.4,25.9,115.7,63.3,62.3,-16.9,80.7,8.8,-109.7,46.9,-44.9,-55.8,16.9,14.4,-56.3,77.3,79.1,-77.4,-45.9,-9.3,-11.9,61.8,-4.5,15.3,23.5,-1.5,-11.9,-15.2,-22.6,18.8,-3.7,22.6,11.9,5.7,-17.5,-10.6,4,10,-22.3,-7.7,18.4,10.2,15.4,-2.3,-16.8,-3.7,2.5,4.9,4.7,8,-24.8,3,12.1,-0.2,8.3,-2.5,-3.4,-13.1,-5.3,2.4,7.2,8.6,-0.6,-8.7,0.8,-12.8,9.8,-1.3,-6.4,3.3,0.2,0.1,2,2.5,-1,5.4,-0.5,-9,-0.9,0.4,1.5,-4.2,0.9,-3.8,-2.6,0.9,-3.9,-9,3,-1.4,0,-2.5,2.8,2.4,-0.6,-0.6,0.1,0,0.5,-0.6,-0.3,-0.1,-1.2,1.1,-1.7,-1,-2.9,-0.1,-1.8,2.6,-2.3,-2,-0.1,-1.2,0.4,0.6,1.2,1,-1.2,-1.5,0.6,0,0.5,0.6,0.5,-0.2,-0.1,0.8,-0.5,0.1,-0.2,-0.9,-1.2,0.1,-0.7,0.2,0.2,-0.9,-0.9,0.6,0.7,0.7,1.2,-0.2,-0.3,0.5,-1.3,0.1,-0.1,0.7,0.2,0,-0.2,0.3,0.5,0.2,0.6,0.4,-0.6,-0.5,-0.3,-0.4,-0.5];
+// Campo magnetico terrestre (IGRF-14, grado 13): intensità totale |B| in nT per un punto geodetico
+function igrfCoefs(year){const t=(year-2025)/5;return IGRF25.map((c,i)=>c+(IGRF30[i]-c)*t)}
+function igrfB(latDeg,lonDeg,hKm,co){
+  const phi=latDeg*R,sp=Math.sin(phi),cp=Math.cos(phi),e2=.00669437999014,Nn=6378.137/Math.sqrt(1-e2*sp*sp);
+  const x=(Nn+hKm)*cp,z=(Nn*(1-e2)+hKm)*sp,r=Math.hypot(x,z),th=Math.atan2(x,z),ph=lonDeg*R;
+  const ct=Math.cos(th),st=Math.sin(th),ar=6371.2/r;
+  const P=[],dP=[];for(let n=0;n<=13;n++){P.push(new Array(14).fill(0));dP.push(new Array(14).fill(0))}
+  P[0][0]=1;
+  let Br=0,Bt=0,Bp=0,k=0,ap=ar*ar;
+  for(let n=1;n<=13;n++){
+    ap*=ar;
+    for(let m=0;m<=n;m++){
+      if(n===m){const f=n===1?1:Math.sqrt(1-1/(2*n));P[n][n]=f*st*P[n-1][n-1];dP[n][n]=f*(st*dP[n-1][n-1]+ct*P[n-1][n-1])}
+      else{
+        const d=Math.sqrt(n*n-m*m),q=n>=2?Math.sqrt((n+m-1)*(n-m-1)):0;
+        P[n][m]=((2*n-1)*ct*P[n-1][m]-(n>=2?q*P[n-2][m]:0))/d;
+        dP[n][m]=((2*n-1)*(ct*dP[n-1][m]-st*P[n-1][m])-(n>=2?q*dP[n-2][m]:0))/d;
+      }
+      const g=co[k++],h=m?co[k++]:0,cm=Math.cos(m*ph),sm=Math.sin(m*ph),w=g*cm+h*sm;
+      Br+=ap*(n+1)*w*P[n][m];Bt-=ap*w*dP[n][m];Bp+=ap*m*(g*sm-h*cm)*P[n][m]/st;
+    }
+  }
+  return Math.hypot(Br,Bt,Bp);
+}
+// Coordinate geomagnetiche con il dipolo centrato, ricavato dai coefficienti di grado 1
+function magPole(co){const g=co[0],a=co[1],b=co[2],B0=Math.hypot(g,a,b);return{lat:90-Math.acos(-g/B0)/R,lon:Math.atan2(b,a)/R+180}}
+function geoToMag(lat,lon,pole){
+  const f=lat*R,l=(lon-pole.lon)*R,pf=pole.lat*R;
+  const x1=Math.cos(f)*Math.cos(l),y1=Math.cos(f)*Math.sin(l),z1=Math.sin(f);
+  const x2=x1*Math.sin(pf)-z1*Math.cos(pf),z2=x1*Math.cos(pf)+z1*Math.sin(pf);
+  return{lat:Math.asin(Math.max(-1,Math.min(1,z2)))/R,lon:Math.atan2(y1,x2)/R};
+}
+// Zone indicative in cui si trova il punto sub-satellite p (lat, lon, alt) alla data d.
+// SAA (South Atlantic Anomaly): campo totale sotto 22 000 nT a 535 km, riscalato con la quota (come r^-3), fino a 2000 km.
+// Cuspidi: latitudine geomagnetica 75-82°, ora locale magnetica 9:30-14:00.
+function spaceZone(p,d){
+  const out=[],t=d.getTime(),co=igrfCoefs(d.getUTCFullYear()+(t-Date.UTC(d.getUTCFullYear(),0,1))/(365.25*864e5));
+  if(p.alt<=2000&&igrfB(p.lat,p.lon,p.alt,co)<22000*Math.pow(6906.2/(6371.2+p.alt),3))out.push('SAA, South Atlantic Anomaly');
+  const pole=magPole(co),m=geoToMag(p.lat,p.lon,pole),sn=sun(t),ms=geoToMag(sn.dec,sn.lon,pole);
+  const mlt=(((12+(m.lon-ms.lon)/15)%24)+24)%24,al=Math.abs(m.lat);
+  if(al>=75&&al<=82&&mlt>=9.5&&mlt<=14)out.push('Cuspide polare '+(m.lat>0?'nord':'sud'));
+  return out;
+}
 function card(){
   const c=$('#card');
   if(!sel||!sel.p||tab!=='map'){c.hidden=true;return}
   const p=sel.p,i=sel.rec.inclo/R;c.hidden=false;
   const dd=Math.abs(NOW()-epoch(sel))/864e5,warn=dd>7?'<div class="m" style="font-size:12px;margin-top:8px">Attenzione: la data è a '+Math.round(dd)+' giorni dall’epoca del TLE, la posizione è poco precisa.</div>':'';
-  const it=[['Latitudine',p.lat.toFixed(2)+'°'],['Longitudine',p.lon.toFixed(2)+'°'],['Sopra',whereIs(p.lat,p.lon)],['Epoca TLE',epoch(sel).toISOString().slice(0,10)],
+  const it=[['Latitudine',p.lat.toFixed(2)+'°'],['Longitudine',p.lon.toFixed(2)+'°'],['Sopra',whereIs(p.lat,p.lon),1],['Epoca TLE',epoch(sel).toISOString().slice(0,10)],
     ['Quota',Math.round(p.alt)+' km'],['Velocità',p.v.toFixed(2)+' km/s'],['Periodo',period(sel).toFixed(1)+' min'],['Inclinazione',i.toFixed(1)+'°']];
-  c.innerHTML='<b>'+esc(sel.name)+'</b><span>NORAD '+esc(sel.id)+'</span><div class="g">'+it.map(a=>'<div'+(a[2]?' style="grid-column:span 2"':'')+'><i>'+a[0]+'</i>'+esc(a[1])+'</div>').join('')+'</div>'+warn;
+  const zn=spaceZone(p,NOW()),zones=zn.length?'<div class="zn">'+zn.map(esc).join('<br>')+'</div>':'';
+  c.innerHTML='<b>'+esc(sel.name)+'</b><span>NORAD '+esc(sel.id)+'</span><div class="g">'+it.map(a=>'<div><i>'+a[0]+'</i>'+(a[2]?a[1]:esc(a[1]))+'</div>').join('')+'</div>'+zones+warn;
 }
 function update(){
   const d=NOW(),g=satellite.gstime(d);for(const s of sats)s.p=pos(s,d,g);
