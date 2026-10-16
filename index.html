@@ -69,14 +69,21 @@ input[type=search],.f input{width:100%;background:var(--bg);color:var(--fg);bord
 .btn.s2{padding:8px 14px;font-size:14px}
 .lk{color:var(--acc);font-size:14px;margin-left:8px}
 .bar{height:4px;background:var(--line);border-radius:2px;margin:8px 0;overflow:hidden}.bar div{height:100%;background:var(--acc)}
+#fv{background:none;border:1px solid var(--line);border-radius:8px;color:var(--acc);font-size:16px;padding:3px 9px;line-height:1.2}
+select#grp{max-width:44vw}
+#chips{display:flex;gap:6px;overflow-x:auto;padding:8px 12px;border-bottom:1px solid var(--line);-webkit-overflow-scrolling:touch}
+#chips[hidden]{display:none}
+.chip{flex:none;background:var(--bg);color:var(--mut);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;white-space:nowrap}
+.chip.on{color:var(--acc);border-color:var(--acc)}
 </style>
 </head>
 <body>
 <header>
   <h1>Orbite</h1>
   <small id="clk"></small>
-  <select id="grp"></select>
+  <button id="fv" aria-label="Preferito">☆</button><select id="grp"></select>
 </header>
+<div id="chips" hidden></div>
 <main>
   <div class="tm"><button id="tm">−1h</button><input type="datetime-local" id="dt"><button id="tp">+1h</button><button id="tn" class="on">Ora</button></div>
   <div id="mv">
@@ -93,7 +100,23 @@ input[type=search],.f input{width:100%;background:var(--bg);color:var(--fg);bord
 
 <script>
 const R=Math.PI/180,$=s=>document.querySelector(s);
-const GROUPS={stations:'Stazioni spaziali',weather:'Meteo','gps-ops':'GPS',science:'Scienza',geo:'Geostazionari',starlink:'Starlink','iride-b1':'IRIDE-OHB B1','iride-b2a':'IRIDE-OHB B2A'};
+const CATEGORIES=[
+ ['In evidenza',['stations','visual','last-30-days','active','analyst']],
+ ['Costellazioni e comunicazioni',['starlink','oneweb','kuiper','qianfan','hulianwang','iridium-NEXT','orbcomm','globalstar','telesat','intelsat','ses','eutelsat','geo','gpz','gpz-plus','amateur','satnogs','x-comm','other-comm']],
+ ['Meteo e osservazione',['weather','resource','sar','sarsat','dmc','tdrss','argos','planet','spire']],
+ ['Navigazione',['gnss','gps-ops','glo-ops','galileo','beidou','sbas']],
+ ['Scienza',['science','geodetic','engineering','education']],
+ ['Varie',['military','radar','cubesat']],
+ ['Detriti',['fengyun-1c-debris','iridium-33-debris','cosmos-2251-debris']],
+ ['Personalizzati',['iride-b1','iride-b2a']]
+];
+const SPECIAL=new Set(['gpz','gpz-plus']);
+const GROUPS={stations:'Stazioni spaziali',visual:'I 100 più luminosi','last-30-days':'Lanciati negli ultimi 30 giorni',active:'Tutti i satelliti attivi (molto grande)',analyst:'Satelliti analyst',
+starlink:'Starlink (molto grande)',oneweb:'OneWeb',kuiper:'Kuiper',qianfan:'Qianfan',hulianwang:'Hulianwang Digui','iridium-NEXT':'Iridium NEXT',orbcomm:'Orbcomm',globalstar:'Globalstar',telesat:'Telesat',intelsat:'Intelsat',ses:'SES',eutelsat:'Eutelsat',geo:'Geostazionari attivi',gpz:'Zona protetta GEO','gpz-plus':'Zona protetta GEO Plus',amateur:'Radioamatori',satnogs:'SatNOGS','x-comm':'Comunicazioni sperimentali','other-comm':'Altre comunicazioni',
+weather:'Meteo',resource:'Risorse terrestri',sar:'Radar ad apertura sintetica',sarsat:'Ricerca e soccorso (SARSAT)',dmc:'Monitoraggio disastri',tdrss:'Relè dati TDRSS',argos:'ARGOS',planet:'Planet',spire:'Spire',
+gnss:'GNSS (tutti)','gps-ops':'GPS operativi','glo-ops':'GLONASS operativi',galileo:'Galileo',beidou:'BeiDou',sbas:'SBAS (WAAS/EGNOS/MSAS)',
+science:'Scienza',geodetic:'Geodetici',engineering:'Ingegneria',education:'Educazione',military:'Militari vari',radar:'Calibrazione radar',cubesat:'CubeSat',
+'fengyun-1c-debris':'Detriti Fengyun 1C','iridium-33-debris':'Detriti Iridium 33','cosmos-2251-debris':'Detriti Cosmos 2251','iride-b1':'IRIDE-OHB B1','iride-b2a':'IRIDE-OHB B2A'};
 // gruppi personalizzati: elenco di NORAD ID
 const CUSTOM={
   'iride-b1':[66695,66696,66697,66698,66699,66700,66701,66702],
@@ -106,84 +129,180 @@ const wrap=d=>((d%360)+540)%360-180;
 const status=t=>$('#st').textContent=t;
 
 // ---------- dati ----------
-const TLE_OK=/^1 \d[^\n]*\r?\n2 \d/m;
-// Scarica i TLE da CelesTrak con cache locale (6 ore), timeout, un nuovo tentativo e messaggi d'errore specifici
-async function getTLE(url,key){
-  let c=null;
-  try{c=JSON.parse(localStorage.getItem(key))}catch(e){}
-  if(c&&c.t&&!TLE_OK.test(c.t))c=null;
-  if(c&&Date.now()-c.ts<216e5)return{txt:c.t,msg:'Uso i TLE salvati.'};
-  status('Scarico i TLE da CelesTrak…');
+// Dal 2026-07-11 i nuovi oggetti hanno numeri di catalogo a 6 cifre e non esistono nel formato TLE:
+// si usa il formato CSV di CelesTrak (OMM), che non ha questo limite ed è anche più piccolo.
+const GP='https://celestrak.org/NORAD/elements/gp.php?';
+const label=g=>g==='one'?'gruppo caricato':(GROUPS[g]||(String(g).startsWith('name:')?'Ricerca: '+g.slice(5):g));
+function gpURL(g){
+  if(String(g).startsWith('name:'))return GP+'NAME='+encodeURIComponent(g.slice(5))+'&FORMAT=csv';
+  return GP+(SPECIAL.has(g)?'SPECIAL=':'GROUP=')+encodeURIComponent(g)+'&FORMAT=csv';
+}
+const hm=ts=>new Date(ts).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+// cache dei dati: Cache Storage (spazio ampio, serve per i gruppi grandi) oppure localStorage
+const GPC='orbite-gp';
+async function cacheGet(key){
+  try{if(window.caches){const c=await caches.open(GPC),r=await c.match('/__gp/'+encodeURIComponent(key));if(r)return{ts:+r.headers.get('x-ts'),t:await r.text()}}}catch(e){}
+  try{const o=JSON.parse(localStorage.getItem('gp2:'+key));if(o&&o.t)return o}catch(e){}
+  return null;
+}
+async function cacheSet(key,t){
+  try{if(window.caches){const c=await caches.open(GPC);await c.put('/__gp/'+encodeURIComponent(key),new Response(t,{headers:{'x-ts':String(Date.now())}}));return}}catch(e){}
+  try{localStorage.setItem('gp2:'+key,JSON.stringify({ts:Date.now(),t}))}catch(e){}
+}
+// CelesTrak aggiorna i dati ogni 2 ore e chiede di scaricarli una sola volta per aggiornamento;
+// a ogni risposta diversa da HTTP 200 ci si ferma subito, senza riprovare.
+const GP_TTL=72e5;
+async function getGP(url,key){
+  const c=await cacheGet(key);
+  if(c&&Date.now()-c.ts<GP_TTL)return{txt:c.t,msg:'Dati salvati alle '+hm(c.ts)+'.'};
+  status('Scarico i dati da CelesTrak…');
   let err='';
-  for(let k=0;k<2;k++){
-    if(k)await new Promise(r=>setTimeout(r,1500));
-    const ac=new AbortController(),to=setTimeout(()=>ac.abort(),20000);
-    try{
-      const r=await fetch(url,{signal:ac.signal});
-      if(r.status===403||r.status===429){clearTimeout(to);err='CelesTrak ha rifiutato la richiesta (HTTP '+r.status+'): limite di scaricamenti, riprova tra circa 2 ore.';break}
-      if(!r.ok){clearTimeout(to);err='CelesTrak ha risposto con errore HTTP '+r.status+'.';continue}
-      const t=await r.text();clearTimeout(to);
-      if(/no gp data/i.test(t))return{err:'Nessun dato per questo oggetto su CelesTrak.',nf:true};
-      if(!TLE_OK.test(t)){err='CelesTrak ha risposto senza dati TLE validi.';break}
-      try{localStorage.setItem(key,JSON.stringify({ts:Date.now(),t}))}catch(e){}
-      return{txt:t,msg:'TLE aggiornati alle '+new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})};
-    }catch(e){
-      clearTimeout(to);
-      err=navigator.onLine===false?'Sei offline.':e.name==='AbortError'?'CelesTrak non risponde (timeout di 20 secondi).':'Connessione a CelesTrak non riuscita (rete, oppure richiesta rifiutata per limite di scaricamenti).';
+  const ac=new AbortController(),to=setTimeout(()=>ac.abort(),30000);
+  try{
+    const r=await fetch(url,{signal:ac.signal});
+    if(r.status===403||r.status===429)err='CelesTrak ha rifiutato la richiesta (HTTP '+r.status+'): limite di scaricamenti, riprova tra circa 2 ore.';
+    else if(!r.ok)err='CelesTrak ha risposto con errore HTTP '+r.status+'.';
+    else{
+      const t=await r.text();
+      if(/no gp data/i.test(t.slice(0,300))){clearTimeout(to);return{err:'Nessun dato per questa richiesta su CelesTrak.',nf:true}}
+      if(!/^OBJECT_NAME,/.test(t))err='CelesTrak ha risposto senza dati validi.';
+      else{await cacheSet(key,t);clearTimeout(to);return{txt:t,msg:'Dati aggiornati alle '+hm(Date.now())+'.'}}
     }
+  }catch(e){
+    err=navigator.onLine===false?'Sei offline.':e.name==='AbortError'?'CelesTrak non risponde (timeout di 30 secondi).':'Connessione a CelesTrak non riuscita (rete, oppure richiesta rifiutata per limite di scaricamenti).';
   }
-  if(c&&c.t)return{txt:c.t,msg:'',warn:err+' Uso gli ultimi TLE salvati.'};
+  clearTimeout(to);
+  if(c)return{txt:c.t,msg:'',warn:err+' Uso gli ultimi dati salvati.'};
   return{err};
 }
-function splitTLE(t){
-  const L=t.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),out=[];
-  for(let i=0;i+2<L.length;i+=3){
-    if(/^1 \d/.test(L[i+1])&&/^2 \d/.test(L[i+2]))out.push({id:L[i+2].substr(2,5).trim(),t:L[i]+'\n'+L[i+1]+'\n'+L[i+2]});
+// lettura CSV (gestisce le virgolette)
+function csvRows(t){
+  const rows=[];let r=[],f='',q=false;
+  for(let i=0;i<t.length;i++){
+    const c=t[i];
+    if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c==='"')q=true;
+    else if(c===','){r.push(f);f=''}
+    else if(c==='\n'){r.push(f);rows.push(r);r=[];f=''}
+    else if(c!=='\r')f+=c;
+  }
+  if(f!==''||r.length){r.push(f);rows.push(r)}
+  return rows;
+}
+const NUMK=new Set(['MEAN_MOTION','ECCENTRICITY','INCLINATION','RA_OF_ASC_NODE','ARG_OF_PERICENTER','MEAN_ANOMALY','EPHEMERIS_TYPE','NORAD_CAT_ID','ELEMENT_SET_NO','REV_AT_EPOCH','BSTAR','MEAN_MOTION_DOT','MEAN_MOTION_DDOT']);
+function omms(t){
+  const rows=csvRows(t.trim()),h=rows.shift()||[],out=[];
+  for(const r of rows){
+    if(r.length<h.length)continue;
+    const o={};h.forEach((k,i)=>{o[k]=NUMK.has(k)?+r[i]:r[i]});
+    if(o.EPOCH&&isFinite(o.NORAD_CAT_ID)&&isFinite(o.MEAN_MOTION))out.push(o);
   }
   return out;
 }
-// Gruppi IRIDE: una sola richiesta per nome ("IRIDE"), poi filtro sugli ID; gli ID mancanti si chiedono uno per uno
+// riga TLE ricostruita da un OMM (solo se satellite.js non legge direttamente gli OMM): il numero di catalogo non serve a SGP4
+const tleCk=l=>{let s=0;for(const c of l){if(c>='0'&&c<='9')s+=+c;else if(c==='-')s++}return s%10};
+function tleExp(v){
+  if(!v)return' 00000-0';
+  const s=v<0?'-':' ',a=Math.abs(v);let e=Math.floor(Math.log10(a))+1,m=Math.round(a/Math.pow(10,e)*1e5);
+  if(m>=1e5){m=Math.round(m/10);e++}
+  e=Math.max(-9,Math.min(9,e));
+  return s+String(m).padStart(5,'0')+(e<0?'-':'+')+Math.abs(e);
+}
+const epochStr=o=>String(o.EPOCH).replace(/(\.\d{3})\d*/,'$1')+'Z';
+function ommTLE(o){
+  const d=new Date(epochStr(o)),y=d.getUTCFullYear(),doy=(d-Date.UTC(y,0,1))/864e5+1,nd=Math.max(-.99999999,Math.min(.99999999,o.MEAN_MOTION_DOT||0));
+  const l1='1 00000U          '+String(y%100).padStart(2,'0')+doy.toFixed(8).padStart(12,'0')+' '+(nd<0?'-':' ')+Math.abs(nd).toFixed(8).slice(1)+' '+tleExp(o.MEAN_MOTION_DDOT||0)+' '+tleExp(o.BSTAR||0)+' 0 '+String((o.ELEMENT_SET_NO||0)%10000).padStart(4,' ');
+  const l2='2 00000 '+o.INCLINATION.toFixed(4).padStart(8)+' '+o.RA_OF_ASC_NODE.toFixed(4).padStart(8)+' '+String(Math.round(o.ECCENTRICITY*1e7)).padStart(7,'0')+' '+o.ARG_OF_PERICENTER.toFixed(4).padStart(8)+' '+o.MEAN_ANOMALY.toFixed(4).padStart(8)+' '+o.MEAN_MOTION.toFixed(8).padStart(11)+String((o.REV_AT_EPOCH||0)%100000).padStart(5);
+  return[l1+tleCk(l1),l2+tleCk(l2)];
+}
+let OMM_MODE=null;
+function recOf(o,mode){
+  const r=mode==='json'?satellite.json2satrec(o):(L=>satellite.twoline2satrec(L[0],L[1]))(ommTLE(o));
+  return r&&!r.error&&isFinite(r.no)&&r.no>0?r:null;
+}
+function ommSat(o){
+  if(OMM_MODE===null){
+    OMM_MODE='tle';
+    if(typeof satellite.json2satrec==='function'){
+      try{const r=recOf(o,'json'),p=r&&satellite.propagate(r,new Date(epochStr(o)));if(p&&p.position&&Math.hypot(p.position.x,p.position.y,p.position.z)>6000)OMM_MODE='json'}catch(e){}
+    }
+  }
+  let rec=null;try{rec=recOf(o,OMM_MODE)}catch(e){}
+  return rec?{name:String(o.OBJECT_NAME).replace(/^0 /,''),rec,id:String(o.NORAD_CAT_ID),ep:Date.parse(epochStr(o))}:null;
+}
+let LT=0;// per ignorare le risposte arrivate in ritardo se nel frattempo si è cambiato gruppo
 async function loadCustom(g){
-  const ids=CUSTOM[g].map(String);
-  const r=await getTLE('https://celestrak.org/NORAD/elements/gp.php?NAME=IRIDE&FORMAT=tle','tle:name:IRIDE');
-  const blocks=r.txt?splitTLE(r.txt):[];
-  const have=new Set(blocks.map(b=>b.id));
+  const tk=++LT,ids=CUSTOM[g].map(String);
+  const r=await getGP(GP+'NAME=IRIDE&FORMAT=csv','gp:name:IRIDE');
+  const objs=r.txt?omms(r.txt):[],have=new Set(objs.map(o=>String(o.NORAD_CAT_ID)));
   for(const id of ids){
     if(have.has(id))continue;
-    const x=await getTLE('https://celestrak.org/NORAD/elements/gp.php?CATNR='+id+'&FORMAT=tle','tle:'+id);
-    if(x.txt)splitTLE(x.txt).forEach(b=>{if(!have.has(b.id)){have.add(b.id);blocks.push(b)}});
+    const x=await getGP(GP+'CATNR='+id+'&FORMAT=csv','gp:'+id);
+    if(x.txt)omms(x.txt).forEach(o=>{const k=String(o.NORAD_CAT_ID);if(!have.has(k)){have.add(k);objs.push(o)}});
   }
-  const keep=blocks.filter(b=>ids.includes(b.id));
+  if(tk!==LT)return;
+  const keep=objs.filter(o=>ids.includes(String(o.NORAD_CAT_ID)));
   if(!keep.length){status(r.err||'Nessun satellite trovato su CelesTrak per questo gruppo.');return}
-  parse(keep.map(b=>b.t).join('\n'));
-  const miss=ids.filter(i=>!keep.some(b=>b.id===i));
-  status(keep.length+' satelliti su '+ids.length+(miss.length?' (mancano NORAD '+miss.join(', ')+')':'')+(r.warn?'. '+r.warn:''));
+  setSats(keep.map(ommSat).filter(Boolean));
+  const miss=ids.filter(i=>!keep.some(o=>String(o.NORAD_CAT_ID)===i));
+  status(sats.length+' satelliti su '+ids.length+(miss.length?' (mancano NORAD '+miss.join(', ')+')':'')+(r.warn?'. '+r.warn:''));
 }
 async function load(g){
   if(CUSTOM[g])return loadCustom(g);
-  const r=await getTLE('https://celestrak.org/NORAD/elements/gp.php?GROUP='+g+'&FORMAT=tle','tle:'+g);
+  const tk=++LT,r=await getGP(gpURL(g),'gp:'+g);
+  if(tk!==LT)return;
   if(!r.txt){status(r.err);return}
-  parse(r.txt);status(r.warn||r.msg);
+  parse(r.txt);
+  status((r.warn||r.msg)+' '+sats.length+' satelliti.'+(sats.length>4000?' Gruppo molto grande: la mappa si aggiorna ogni 3 secondi.':''));
 }
 async function loadOne(id){
   id=String(id).replace(/\D/g,'');if(!id)return;
-  const r=await getTLE('https://celestrak.org/NORAD/elements/gp.php?CATNR='+id+'&FORMAT=tle','tle:'+id);
+  const tk=++LT,r=await getGP(GP+'CATNR='+id+'&FORMAT=csv','gp:'+id);
+  if(tk!==LT)return;
   if(!r.txt){status(r.nf?'Nessun satellite trovato con NORAD '+id+'.':r.err);return}
-  const old=gs.querySelector('option[value=one]');if(old)old.remove();
-  const o=document.createElement('option');o.value='one';o.textContent='NORAD '+id;gs.appendChild(o);gs.value='one';group='one';
+  tempOpt={key:'one',label:'NORAD '+id};group='one';buildSelect();renderFav();
   parse(r.txt);sel=sats[0]||null;
   if(sel&&sel.p){view.lon=sel.p.lon;view.lat=sel.p.lat}
   update();renderPass();show('map');
   status((sel?'Mostro solo '+sel.name+' (NORAD '+id+')':'Nessun dato valido per NORAD '+id+'.')+(r.warn?' '+r.warn:''));
 }
-function parse(t){
-  const L=t.trim().split(/\r?\n/).map(s=>s.trim());sats=[];
-  for(let i=0;i+2<L.length;i+=3){
-    try{sats.push({name:L[i].replace(/^0 /,''),rec:satellite.twoline2satrec(L[i+1],L[i+2]),id:L[i+2].substr(2,5).trim()})}catch(e){}
-  }
-  if(sats.length>1500)sats.length=1500;
+function setSats(list){
+  sats=list.slice(0,20000);
   sel=group==='stations'?(sats.find(s=>/ISS \(ZARYA\)/.test(s.name))||null):null;
   update();renderList();
+}
+const parse=t=>setSats(omms(t).map(ommSat).filter(Boolean));
+// ---------- gruppi e preferiti ----------
+let FAV=[],tempOpt=null;
+try{FAV=JSON.parse(localStorage.getItem('orbite:fav'))||[]}catch(e){}
+if(!Array.isArray(FAV))FAV=[];
+function buildSelect(){
+  gs.innerHTML='';
+  const grp=t=>{const g=document.createElement('optgroup');g.label=t;gs.appendChild(g);return g};
+  const add=(p,k,t)=>{const o=document.createElement('option');o.value=k;o.textContent=(FAV.includes(k)?'★ ':'')+t;p.appendChild(o)};
+  if(tempOpt)add(grp('Corrente'),tempOpt.key,tempOpt.label);
+  const fn=FAV.filter(k=>String(k).startsWith('name:')&&!(tempOpt&&tempOpt.key===k));
+  if(fn.length){const g=grp('Ricerche preferite');fn.forEach(k=>add(g,k,label(k)))}
+  for(const [t,items] of CATEGORIES){const g=grp(t);items.forEach(k=>add(g,k,GROUPS[k]))}
+  gs.value=group;
+}
+function renderFav(){
+  const f=$('#fv');f.textContent=FAV.includes(group)?'★':'☆';f.style.visibility=group==='one'?'hidden':'visible';
+  const c=$('#chips');c.innerHTML='';c.hidden=!FAV.length;
+  FAV.forEach(k=>{const b=document.createElement('button');b.className='chip'+(k===group?' on':'');b.textContent=label(k).replace(/ \(molto grande\)/,'');b.onclick=()=>selectGroup(k);c.appendChild(b)});
+}
+function selectGroup(k){
+  if(k==='one')return;
+  group=k;
+  if(String(k).startsWith('name:')&&!FAV.includes(k))tempOpt={key:k,label:label(k)};
+  else if(tempOpt&&tempOpt.key!==k)tempOpt=null;
+  buildSelect();renderFav();load(k);
+}
+function toggleFav(){
+  if(group==='one')return;
+  const i=FAV.indexOf(group);if(i<0)FAV.push(group);else FAV.splice(i,1);
+  try{localStorage.setItem('orbite:fav',JSON.stringify(FAV))}catch(e){}
+  buildSelect();renderFav();
 }
 // I contorni che attraversano la linea del cambio data (180°) vengono resi continui:
 // le longitudini possono superare ±180° e la mappa li ridisegna a ±360°. Un anello che gira attorno a un polo
@@ -216,9 +335,9 @@ async function loadLand(){
 }
 
 // ---------- calcoli ----------
-function pos(s,d){
+function pos(s,d,g0){
   const pv=satellite.propagate(s.rec,d);if(!pv||!pv.position)return null;
-  const g=satellite.gstime(d),gd=satellite.eciToGeodetic(pv.position,g),v=pv.velocity;
+  const g=g0===undefined?satellite.gstime(d):g0,gd=satellite.eciToGeodetic(pv.position,g),v=pv.velocity;
   return{lat:gd.latitude/R,lon:satellite.degreesLong(gd.longitude),alt:gd.height,v:Math.hypot(v.x,v.y,v.z)};
 }
 function sun(d){
@@ -228,7 +347,7 @@ function sun(d){
   return{dec,lon:wrap(ra-(280.46061837+360.98564736629*n))};
 }
 function period(s){return 2*Math.PI/s.rec.no}
-function epoch(s){const y=s.rec.epochyr<57?2000+s.rec.epochyr:1900+s.rec.epochyr;return new Date(Date.UTC(y,0,1)+(s.rec.epochdays-1)*864e5)}
+function epoch(s){if(s.ep)return new Date(s.ep);const y=s.rec.epochyr<57?2000+s.rec.epochyr:1900+s.rec.epochyr;return new Date(Date.UTC(y,0,1)+(s.rec.epochdays-1)*864e5)}
 // ---------- data e ora della mappa (tempo reale oppure simulato) ----------
 let simT=null;
 function NOW(){return simT==null?new Date():new Date(simT)}
@@ -470,7 +589,7 @@ function card(){
   c.innerHTML='<b>'+esc(sel.name)+'</b><span>NORAD '+esc(sel.id)+'</span><div class="g">'+it.map(a=>'<div'+(a[2]?' style="grid-column:span 2"':'')+'><i>'+a[0]+'</i>'+esc(a[1])+'</div>').join('')+'</div>'+warn;
 }
 function update(){
-  const d=NOW();for(const s of sats)s.p=pos(s,d);
+  const d=NOW(),g=satellite.gstime(d);for(const s of sats)s.p=pos(s,d,g);
   $('#clk').textContent=simT==null?d.toLocaleTimeString('it-IT'):d.toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
   if(simT==null)syncTime();
   draw();card();
@@ -516,6 +635,10 @@ function renderList(){
     const b=document.createElement('button');b.className='btn';b.textContent='Mostra solo NORAD '+q;
     b.style.margin='4px 0 10px';b.onclick=()=>loadOne(q);box.prepend(b);
   }
+  if(q.length>=3&&!/^\d+$/.test(q)){
+    const b=document.createElement('button');b.className='btn';b.textContent='Cerca «'+q+'» in tutto il catalogo CelesTrak';
+    b.style.margin='4px 0 10px';b.onclick=()=>selectGroup('name:'+q);box.prepend(b);
+  }
   r.forEach(s=>{
     const d=document.createElement('div');d.className='row';
     d.innerHTML='<div>'+esc(s.name)+'</div><span>'+esc(s.id)+'</span>';
@@ -524,7 +647,7 @@ function renderList(){
   });
 }
 $('#q').oninput=renderList;
-$('#q').onkeydown=e=>{const v=$('#q').value.trim();if(e.key==='Enter'&&/^\d{1,9}$/.test(v))loadOne(v)};
+$('#q').onkeydown=e=>{const v=$('#q').value.trim();if(e.key!=='Enter')return;if(/^\d{1,9}$/.test(v))loadOne(v);else if(v.length>=3)selectGroup('name:'+v)};
 
 // ---------- passaggi ----------
 function passes(s){
@@ -725,7 +848,9 @@ async function screenLocal(tg,cands,prop,t0,hours,thr,onProg,stop){
 async function runLocal(){
   if(!sel||COL.busy2)return;
   const tg=sel,tok=++COL.tok2;COL.busy2=true;COL.loc=null;COL.locFor=tg.id;COL.prog=0;
-  const cands=sats.filter(s=>s!==tg&&s.id!==tg.id&&shellOverlap(tg,s));COL.nc=cands.length;renderCol();
+  const cands=sats.filter(s=>s!==tg&&s.id!==tg.id&&shellOverlap(tg,s));COL.nc=cands.length;
+  if(cands.length>2000){COL.busy2=false;COL.loc=null;COL.locMsg='Troppi satelliti a quota compatibile ('+cands.length+') per il calcolo locale: usa SOCRATES oppure scegli un gruppo più piccolo.';renderCol();return}
+  COL.locMsg='';renderCol();
   let res=null;
   try{
     res=await screenLocal(tg,cands,propSat,Date.now(),72,5,p=>{COL.prog=p;const b=$('#cb div');if(b)b.style.width=Math.round(p*100)+'%'},()=>tok!==COL.tok2||sel!==tg);
@@ -800,11 +925,12 @@ function renderCol(){
     b+='<p class="m" style="font-size:12px;margin-top:10px">Pc è la probabilità massima di SOCRATES, un limite superiore molto prudente basato su TLE pubblici: la probabilità reale è di solito molto più bassa. I colori sono una mia scala indicativa (rosso da 1e-4, giallo da 1e-5), non ufficiale. Non sostituisce i dati degli operatori.</p>';
   }
   // calcolo locale
-  const gname=GROUPS[group]||'gruppo caricato';
+  const gname=label(group);
   let L='<div style="border-top:1px solid var(--line);margin-top:16px;padding-top:12px"><b>Calcolo locale</b> <span class="m" style="font-size:12px">riserva, senza SOCRATES</span>'+
     '<p class="m" style="font-size:12px;margin:4px 0 8px">Confronta '+esc(sel.name)+' con gli altri satelliti del gruppo «'+esc(gname)+'» ('+sats.length+') nelle prossime 72 ore, soglia 5 km, usando solo i TLE. Non copre tutto il catalogo e non calcola la probabilità. Può richiedere anche un minuto.</p>';
   if(COL.busy2)L+='<div class="bar" id="cb"><div style="width:'+Math.round(COL.prog*100)+'%"></div></div><p class="m" style="font-size:12px">Confronto con '+COL.nc+' satelliti a quota compatibile…</p>';
   else L+='<button class="btn s2" id="cl">'+(COL.loc&&COL.locFor===sel.id?'Ricalcola':'Calcola in locale')+'</button>';
+  if(COL.locMsg)L+='<p class="m" style="font-size:12px;color:var(--acc)">'+esc(COL.locMsg)+'</p>';
   L+='</div>';
   let lb='';
   if(!COL.busy2&&COL.loc&&COL.locFor===sel.id){
@@ -838,15 +964,12 @@ function show(t){
 }
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>show(b.dataset.t));
 const gs=$('#grp');
-for(const k in GROUPS){const o=document.createElement('option');o.value=k;o.textContent=GROUPS[k];gs.appendChild(o)}
-gs.onchange=()=>{
-  group=gs.value;if(group==='one')return;
-  const o=gs.querySelector('option[value=one]');if(o)o.remove();
-  load(group);
-};
+gs.onchange=()=>selectGroup(gs.value);
+$('#fv').onclick=toggleFav;
+buildSelect();renderFav();
 
 addEventListener('resize',size);
-syncTime();size();loadLand();loadCountries();load(group);setInterval(update,1000);
+syncTime();size();loadLand();loadCountries();load(group);let TK=0;setInterval(()=>{if(sats.length>4000&&TK++%3)return;update()},1000);
 if('serviceWorker' in navigator&&/^https?:/.test(location.protocol))addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 </script>
 </body>
